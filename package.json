@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Branch Chat - A tree-structured conversational AI system",
   "main": "server.js",
-  "type": "module",
+  "type": "commonjs",
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js"

@@ -1,7 +1,7 @@
 // Inline HTML content
-import express from 'express';
-import cors from 'cors';
-import fetch from 'node-fetch';
+const express = require('express');
+const cors = require('cors');
+const fetch = require('node-fetch');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -1054,7 +1054,7 @@ function getMockResponse(message) {
 }
 
 // Export for Vercel serverless functions
-export default app;
+module.exports = app;
 
 // Start server (only for local development)
 if (process.env.NODE_ENV !== 'production') {
