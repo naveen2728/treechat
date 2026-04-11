@@ -12,8 +12,16 @@
       "dest": "/server.js"
     },
     {
-      "src": "/(.*\\.(js|css|html))$",
-      "dest": "/$1"
+      "src": "/tree.html",
+      "dest": "/tree.html"
+    },
+    {
+      "src": "/tree.js",
+      "dest": "/tree.js"
+    },
+    {
+      "src": "/tree.css",
+      "dest": "/tree.css"
     },
     {
       "src": "/(.*)",
