@@ -1,0 +1,97 @@
+const express = require('express');
+const cors = require('cors');
+const fetch = require('node-fetch');
+
+const app = express();
+const PORT = process.env.PORT || 3001;
+
+// Middleware
+app.use(cors());
+app.use(express.json());
+
+// Hugging Face API endpoint
+app.post('/api/ai', async (req, res) => {
+    try {
+        const { message } = req.body;
+
+        if (!message) {
+            return res.status(400).json({ error: 'Message is required' });
+        }
+
+        // Get token from environment variable
+        const HF_TOKEN = process.env.HF_TOKEN;
+
+        if (!HF_TOKEN) {
+            console.warn('HF_TOKEN not set, using mock response');
+            return res.json({
+                generated_text: getMockResponse(message)
+            });
+        }
+
+        const response = await fetch(
+            'https://api-inference.huggingface.co/models/distilgpt2',
+            {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${HF_TOKEN}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    inputs: message,
+                    parameters: {
+                        max_length: 100,
+                        temperature: 0.7,
+                        do_sample: true,
+                        pad_token_id: 50256
+                    }
+                })
+            }
+        );
+
+        if (!response.ok) {
+            throw new Error(`Hugging Face API error: ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        // Extract the generated text
+        let generatedText = '';
+        if (Array.isArray(data) && data.length > 0) {
+            generatedText = data[0].generated_text || '';
+            // Remove the input message from the response if it's included
+            if (generatedText.startsWith(message)) {
+                generatedText = generatedText.substring(message.length).trim();
+            }
+        } else if (data.generated_text) {
+            generatedText = data.generated_text;
+        }
+
+        if (!generatedText) {
+            generatedText = getMockResponse(message);
+        }
+
+        res.json({ generated_text: generatedText });
+
+    } catch (error) {
+        console.error('AI API Error:', error);
+        res.json({
+            generated_text: getMockResponse(message)
+        });
+    }
+});
+
+function getMockResponse(message) {
+    const responses = [
+        "That's an interesting point. Can you elaborate?",
+        "I see what you mean. What are your thoughts on this?",
+        "Great question! Let me think about that.",
+        "I understand. How does that make you feel?",
+        "That's a good observation. What comes next?"
+    ];
+    return responses[Math.floor(Math.random() * responses.length)];
+}
+
+// Start server
+app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+});
