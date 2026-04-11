@@ -697,9 +697,9 @@ class TreeChat {
 
     renderNode(node, container, depth) {
         const messageDiv = document.createElement('div');
-        messageDiv.className = \`message \${node.role}\`;
+        messageDiv.className = 'message ' + node.role;
         messageDiv.dataset.nodeId = node.id;
-        messageDiv.style.marginLeft = \`\${depth * 20}px\`;
+        messageDiv.style.marginLeft = depth * 20 + 'px';
 
         const bubble = document.createElement('div');
         bubble.className = 'bubble';
@@ -848,7 +848,7 @@ class TreeChat {
             });
 
             if (!response.ok) {
-                throw new Error(\`HTTP error! status: \${response.status}\`);
+                throw new Error('HTTP error! status: ' + response.status);
             }
 
             const data = await response.json();
