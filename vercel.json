@@ -4,6 +4,18 @@
     {
       "src": "server.js",
       "use": "@vercel/node"
+    },
+    {
+      "src": "tree.html",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "tree.js",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "tree.css",
+      "use": "@vercel/static"
     }
   ],
   "routes": [
@@ -12,20 +24,8 @@
       "dest": "/server.js"
     },
     {
-      "src": "/tree.html",
-      "dest": "/tree.html"
-    },
-    {
-      "src": "/tree.js",
-      "dest": "/tree.js"
-    },
-    {
-      "src": "/tree.css",
-      "dest": "/tree.css"
-    },
-    {
       "src": "/(.*)",
-      "dest": "/tree.html"
+      "dest": "/$1"
     }
   ]
 }
