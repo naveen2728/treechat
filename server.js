@@ -1,6 +1,6 @@
-const express = require('express');
-const cors = require('cors');
-const fetch = require('node-fetch');
+import express from 'express';
+import cors from 'cors';
+import fetch from 'node-fetch';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -91,7 +91,12 @@ function getMockResponse(message) {
     return responses[Math.floor(Math.random() * responses.length)];
 }
 
-// Start server
-app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-});
+// Export for Vercel serverless functions
+export default app;
+
+// Start server (only for local development)
+if (process.env.NODE_ENV !== 'production') {
+    app.listen(PORT, () => {
+        console.log(`Server running on port ${PORT}`);
+    });
+}
