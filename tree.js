@@ -8,6 +8,7 @@ const settingsBtn = document.getElementById("settingsBtn");
 const STORAGE_KEY = "treechat-tree:v2";
 
 let tree = loadTree();
+let latestAiWarning = "";
 
 function createNode(text, role = "user") {
   return {
@@ -100,7 +101,17 @@ function scrollToBottom() {
 function renderTree(animatedNodeId = null) {
   messagesEl.innerHTML = "";
   renderNode(tree, messagesEl, false, animatedNodeId);
+  renderAiWarning();
   scrollToBottom();
+}
+
+function renderAiWarning() {
+  if (!latestAiWarning) return;
+
+  const warningEl = document.createElement("div");
+  warningEl.className = "api-warning";
+  warningEl.textContent = latestAiWarning;
+  messagesEl.appendChild(warningEl);
 }
 
 function renderNode(node, container, isChild, animatedNodeId) {
@@ -216,9 +227,11 @@ async function callAi(message) {
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
     const data = await response.json();
+    latestAiWarning = data.warning || (data.source === "mock" ? "AI is using fallback replies right now." : "");
     return data.generated_text || getMockResponse();
   } catch (error) {
     console.error("AI API call failed:", error);
+    latestAiWarning = "AI request failed, so a fallback reply was used.";
     return getMockResponse();
   }
 }

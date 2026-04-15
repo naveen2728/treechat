@@ -21,6 +21,13 @@ app.get("/tree.js", (req, res) => {
   res.sendFile(path.join(__dirname, "tree.js"));
 });
 
+app.get("/api/health", (req, res) => {
+  res.json({
+    ok: true,
+    aiConfigured: Boolean(process.env.HF_TOKEN),
+  });
+});
+
 app.post("/api/ai", async (req, res) => {
   try {
     const { message } = req.body;
@@ -32,10 +39,14 @@ app.post("/api/ai", async (req, res) => {
     const HF_TOKEN = process.env.HF_TOKEN;
 
     if (!HF_TOKEN) {
-      return res.json({ generated_text: getMockResponse(message) });
+      return res.json({
+        generated_text: getMockResponse(),
+        source: "mock",
+        warning: "HF_TOKEN is not configured. Add it in Vercel environment variables to enable AI.",
+      });
     }
 
-    const response = await fetch("https://api-inference.huggingface.co/models/distilgpt2", {
+    const response = await fetch("https://api-inference.huggingface.co/models/microsoft/DialoGPT-medium", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${HF_TOKEN}`,
@@ -43,17 +54,21 @@ app.post("/api/ai", async (req, res) => {
       },
       body: JSON.stringify({
         inputs: message,
+        options: {
+          wait_for_model: true,
+        },
         parameters: {
-          max_length: 100,
+          max_new_tokens: 80,
           temperature: 0.7,
           do_sample: true,
-          pad_token_id: 50256,
+          return_full_text: false,
         },
       }),
     });
 
     if (!response.ok) {
-      throw new Error(`Hugging Face API error: ${response.status}`);
+      const errorBody = await response.text();
+      throw new Error(`Hugging Face API error: ${response.status} ${errorBody}`);
     }
 
     const data = await response.json();
@@ -68,10 +83,17 @@ app.post("/api/ai", async (req, res) => {
       generatedText = data.generated_text;
     }
 
-    res.json({ generated_text: generatedText || getMockResponse(message) });
+    res.json({
+      generated_text: generatedText || getMockResponse(),
+      source: generatedText ? "huggingface" : "mock",
+    });
   } catch (error) {
     console.error("AI API Error:", error);
-    res.json({ generated_text: getMockResponse(req.body?.message || "") });
+    res.json({
+      generated_text: getMockResponse(),
+      source: "mock",
+      warning: "AI provider failed, so a fallback reply was used.",
+    });
   }
 });
 
