@@ -93,6 +93,10 @@ function cleanGeneratedText(text) {
     .replace(/\bsansserif\b/gi, "sans serif")
     .replace(/\buserinterface\b/gi, "user interface")
     .replace(/\bmessagebubble(s)?\b/gi, "message bubble$1")
+    .replace(/\blineheight\b/gi, "line height")
+    .replace(/\bletterspacing\b/gi, "letter spacing")
+    .replace(/\bfontsize\b/gi, "font size")
+    .replace(/\bfontweight\b/gi, "font weight")
     .replace(/\bchatgpt\b/gi, "ChatGPT")
     .replace(
       /\b(minimal|clean|familiar|consistent|subtle|clear|simple|readable|harmonious)(design|interface|layout|fonts|colors|spacing|message|bubble|controls|typography)\b/gi,
