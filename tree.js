@@ -156,7 +156,7 @@ function renderNode(node, container, isChild, animatedNodeId) {
 
   const bubbleEl = document.createElement("div");
   bubbleEl.className = `bubble ${node.role}`;
-  bubbleEl.textContent = node.text;
+  renderMessageText(bubbleEl, node.text);
 
   const toggleBtn = document.createElement("button");
   toggleBtn.type = "button";
@@ -210,6 +210,74 @@ function renderNode(node, container, isChild, animatedNodeId) {
   if (node.id === animatedNodeId) {
     addEnteringAnimation(nodeEl);
   }
+}
+
+function renderMessageText(container, text) {
+  const fragment = document.createDocumentFragment();
+  const blocks = normalizeMessageText(text).split(/\n{2,}/);
+
+  blocks.forEach((block) => {
+    const trimmed = block.trim();
+    if (!trimmed) return;
+
+    if (trimmed.startsWith("```") && trimmed.endsWith("```")) {
+      const codeEl = document.createElement("pre");
+      codeEl.className = "message-code";
+      const codeInner = document.createElement("code");
+      codeInner.textContent = trimmed.replace(/^```[a-zA-Z0-9_-]*\n?/, "").replace(/```$/, "").trim();
+      codeEl.appendChild(codeInner);
+      fragment.appendChild(codeEl);
+      return;
+    }
+
+    const lines = trimmed.split("\n");
+    const isList = lines.every((line) => /^[-*]\s+/.test(line.trim()));
+
+    if (isList) {
+      const listEl = document.createElement("ul");
+      listEl.className = "message-list";
+      lines.forEach((line) => {
+        const itemEl = document.createElement("li");
+        appendInlineText(itemEl, line.replace(/^[-*]\s+/, ""));
+        listEl.appendChild(itemEl);
+      });
+      fragment.appendChild(listEl);
+      return;
+    }
+
+    const paragraphEl = document.createElement("p");
+    paragraphEl.className = "message-paragraph";
+    appendInlineText(paragraphEl, trimmed);
+    fragment.appendChild(paragraphEl);
+  });
+
+  container.appendChild(fragment);
+}
+
+function normalizeMessageText(text) {
+  return String(text || "")
+    .replace(/\r\n/g, "\n")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function appendInlineText(container, text) {
+  const parts = String(text).split(/(`[^`]+`)/g);
+
+  parts.forEach((part) => {
+    if (!part) return;
+
+    if (part.startsWith("`") && part.endsWith("`")) {
+      const codeEl = document.createElement("code");
+      codeEl.className = "inline-code";
+      codeEl.textContent = part.slice(1, -1);
+      container.appendChild(codeEl);
+      return;
+    }
+
+    container.appendChild(document.createTextNode(part));
+  });
 }
 
 function toggleNode(nodeId) {

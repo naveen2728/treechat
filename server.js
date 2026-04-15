@@ -69,7 +69,7 @@ app.post("/api/ai", async (req, res) => {
     }
 
     const data = await response.json();
-    const generatedText = data.choices?.[0]?.message?.content?.trim() || "";
+    const generatedText = cleanGeneratedText(data.choices?.[0]?.message?.content || "");
 
     res.json({
       generated_text: generatedText || getMockResponse(),
@@ -84,6 +84,18 @@ app.post("/api/ai", async (req, res) => {
     });
   }
 });
+
+function cleanGeneratedText(text) {
+  return String(text || "")
+    .replace(/\r\n/g, "\n")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(
+      /\b(minimal|clean|familiar|consistent|subtle|clear|simple)(design|interface|layout|fonts|colors|spacing|message|bubble|controls)\b/gi,
+      "$1 $2",
+    )
+    .trim();
+}
 
 function buildConversation(message, history = []) {
   const cleanedHistory = Array.isArray(history)
@@ -101,7 +113,7 @@ function buildConversation(message, history = []) {
     {
       role: "system",
       content:
-        "You are Branch Chat, a thoughtful assistant inside a ChatGPT-style app. Be useful, direct, and conversational. Use the conversation context when it helps. If the user asks for code, be precise. If they ask an open question, give a clear answer with a little reasoning. Do not say you are a mock or fallback assistant.",
+        "You are Branch Chat, a thoughtful assistant inside a ChatGPT-style app. Be useful, direct, and conversational. Use the conversation context when it helps. Write with clean spacing and readable paragraphs. Use short bullets only when helpful. If the user asks for code, be precise. If they ask an open question, give a clear answer with a little reasoning. Do not say you are a mock or fallback assistant.",
     },
     ...cleanedHistory,
     {
