@@ -2,13 +2,24 @@ const messagesEl = document.getElementById("messages");
 const formEl = document.getElementById("chatForm");
 const inputEl = document.getElementById("messageInput");
 const newChatBtn = document.getElementById("newChatBtn");
+const sidebarNewChatBtn = document.getElementById("sidebarNewChatBtn");
 const exportBtn = document.getElementById("exportBtn");
 const settingsBtn = document.getElementById("settingsBtn");
 
-const STORAGE_KEY = "treechat-tree:v2";
+const STORAGE_KEY = "treechat-tree:v3";
 
 let tree = loadTree();
 let latestAiWarning = "";
+
+function createRoot() {
+  return {
+    id: "root",
+    text: "",
+    role: "root",
+    expanded: true,
+    children: [],
+  };
+}
 
 function createNode(text, role = "user") {
   return {
@@ -28,7 +39,7 @@ function loadTree() {
     console.warn("Failed to load saved chat:", error);
   }
 
-  return createNode("Welcome to Branch Chat! Start a conversation...", "assistant");
+  return createRoot();
 }
 
 function saveTree() {
@@ -100,9 +111,29 @@ function scrollToBottom() {
 
 function renderTree(animatedNodeId = null) {
   messagesEl.innerHTML = "";
-  renderNode(tree, messagesEl, false, animatedNodeId);
+  if (tree.children.length === 0) {
+    renderEmptyState();
+  } else {
+    tree.children.forEach((child) => renderNode(child, messagesEl, false, animatedNodeId));
+  }
   renderAiWarning();
   scrollToBottom();
+}
+
+function renderEmptyState() {
+  const emptyEl = document.createElement("div");
+  emptyEl.className = "empty-state";
+
+  const titleEl = document.createElement("strong");
+  titleEl.textContent = "What are we branching today?";
+
+  const textEl = document.createElement("span");
+  textEl.textContent =
+    "Start with a normal message. Use Branch on any reply when you want a side path.";
+
+  emptyEl.appendChild(titleEl);
+  emptyEl.appendChild(textEl);
+  messagesEl.appendChild(emptyEl);
 }
 
 function renderAiWarning() {
@@ -154,11 +185,15 @@ function renderNode(node, container, isChild, animatedNodeId) {
   deleteBtn.addEventListener("click", () => deleteNode(node.id));
   deleteBtn.style.display = node === tree ? "none" : "inline-flex";
 
+  const actionsEl = document.createElement("div");
+  actionsEl.className = "message-actions";
+  actionsEl.appendChild(toggleBtn);
+  actionsEl.appendChild(branchBtn);
+  actionsEl.appendChild(editBtn);
+  actionsEl.appendChild(deleteBtn);
+
   rowEl.appendChild(bubbleEl);
-  rowEl.appendChild(toggleBtn);
-  rowEl.appendChild(branchBtn);
-  rowEl.appendChild(editBtn);
-  rowEl.appendChild(deleteBtn);
+  rowEl.appendChild(actionsEl);
   nodeEl.appendChild(rowEl);
 
   const childrenEl = document.createElement("div");
@@ -186,7 +221,7 @@ function toggleNode(nodeId) {
 
   const nodeEl = messagesEl.querySelector(`[data-node-id="${nodeId}"]`);
   const childrenEl = nodeEl?.querySelector(":scope > .message-children");
-  const toggleBtn = nodeEl?.querySelector(":scope > .message-row > .toggle-btn");
+  const toggleBtn = nodeEl?.querySelector(":scope > .message-row .toggle-btn");
 
   if (!childrenEl || !toggleBtn) {
     renderTree();
@@ -210,8 +245,7 @@ async function appendConversation(parentId, message) {
 
   const aiText = await callAi(message);
   const assistantNode = createNode(aiText, "assistant");
-  userNode.children.push(assistantNode);
-  userNode.expanded = true;
+  parent.children.push(assistantNode);
   saveTree();
   renderTree(assistantNode.id);
 }
@@ -302,10 +336,14 @@ formEl.addEventListener("submit", (event) => {
 });
 
 newChatBtn.addEventListener("click", () => {
-  tree = createNode("Welcome to Branch Chat! Start a conversation...", "assistant");
+  tree = createRoot();
   saveTree();
   renderTree();
   inputEl.focus();
+});
+
+sidebarNewChatBtn.addEventListener("click", () => {
+  newChatBtn.click();
 });
 
 exportBtn.addEventListener("click", exportTree);

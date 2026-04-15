@@ -6,43 +6,59 @@
     <link rel="stylesheet" href="tree.css" />
   </head>
   <body>
-    <div class="page-title">Branch Chat &#127795;</div>
-
-    <div class="chat-shell" role="application" aria-label="Chat interface">
-      <div class="chat-header">
-        <div class="chat-title">
-          <strong>Chat</strong>
-          <span>Type a message and click Send</span>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Conversation sidebar">
+        <div class="brand">
+          <span class="brand-mark">B</span>
+          <span>Branch Chat</span>
         </div>
-        <div class="chat-actions">
-          <button class="settings-btn" id="settingsBtn" type="button" aria-label="Settings">
-            Settings
-          </button>
-          <button class="export-btn" id="exportBtn" type="button" aria-label="Export Chat">
-            Export
-          </button>
-          <button class="newchat-btn" id="newChatBtn" type="button" aria-label="New Chat">
-            New Chat
-          </button>
+        <button class="sidebar-newchat" id="sidebarNewChatBtn" type="button">New chat</button>
+        <div class="sidebar-section">
+          <span class="sidebar-label">Workspace</span>
+          <div class="sidebar-item is-active">Current conversation</div>
         </div>
-      </div>
+      </aside>
 
-      <div class="chat-messages" id="messages" aria-live="polite"></div>
+      <main class="main-stage">
+        <div class="page-title">Branch Chat &#127795;</div>
 
-      <div class="chat-footer">
-        <form id="chatForm">
-          <input
-            id="messageInput"
-            class="input"
-            type="text"
-            autocomplete="off"
-            placeholder="Write your message..."
-            aria-label="Message input"
-          />
-          <button class="btn" id="sendBtn" type="submit">Send</button>
-        </form>
-        <div class="hint">Press Enter to send.</div>
-      </div>
+        <div class="chat-shell" role="application" aria-label="Chat interface">
+          <div class="chat-header">
+            <div class="chat-title">
+              <strong>Chat</strong>
+              <span>Send normally. Use Branch only when you want a side path.</span>
+            </div>
+            <div class="chat-actions">
+              <button class="settings-btn" id="settingsBtn" type="button" aria-label="Settings">
+                Settings
+              </button>
+              <button class="export-btn" id="exportBtn" type="button" aria-label="Export Chat">
+                Export
+              </button>
+              <button class="newchat-btn" id="newChatBtn" type="button" aria-label="New Chat">
+                New Chat
+              </button>
+            </div>
+          </div>
+
+          <div class="chat-messages" id="messages" aria-live="polite"></div>
+
+          <div class="chat-footer">
+            <form id="chatForm">
+              <input
+                id="messageInput"
+                class="input"
+                type="text"
+                autocomplete="off"
+                placeholder="Message Branch Chat..."
+                aria-label="Message input"
+              />
+              <button class="btn" id="sendBtn" type="submit">Send</button>
+            </form>
+            <div class="hint">Press Enter to send. Branch buttons create side paths.</div>
+          </div>
+        </div>
+      </main>
     </div>
 
     <script src="tree.js"></script>
