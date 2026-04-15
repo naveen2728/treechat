@@ -90,8 +90,12 @@ function cleanGeneratedText(text) {
     .replace(/\r\n/g, "\n")
     .replace(/[ \t]+\n/g, "\n")
     .replace(/\n{3,}/g, "\n\n")
+    .replace(/\bsansserif\b/gi, "sans serif")
+    .replace(/\buserinterface\b/gi, "user interface")
+    .replace(/\bmessagebubble(s)?\b/gi, "message bubble$1")
+    .replace(/\bchatgpt\b/gi, "ChatGPT")
     .replace(
-      /\b(minimal|clean|familiar|consistent|subtle|clear|simple)(design|interface|layout|fonts|colors|spacing|message|bubble|controls)\b/gi,
+      /\b(minimal|clean|familiar|consistent|subtle|clear|simple|readable|harmonious)(design|interface|layout|fonts|colors|spacing|message|bubble|controls|typography)\b/gi,
       "$1 $2",
     )
     .trim();
