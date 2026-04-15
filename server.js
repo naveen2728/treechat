@@ -30,7 +30,7 @@ app.get("/api/health", (req, res) => {
 
 app.post("/api/ai", async (req, res) => {
   try {
-    const { message } = req.body;
+    const { message, history } = req.body;
 
     if (!message) {
       return res.status(400).json({ error: "Message is required" });
@@ -47,6 +47,7 @@ app.post("/api/ai", async (req, res) => {
     }
 
     const model = process.env.HF_MODEL || "openai/gpt-oss-20b:fastest";
+    const conversation = buildConversation(message, history);
     const response = await fetch("https://router.huggingface.co/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -55,19 +56,10 @@ app.post("/api/ai", async (req, res) => {
       },
       body: JSON.stringify({
         model,
-        messages: [
-          {
-            role: "system",
-            content:
-              "You are Branch Chat's helpful assistant. Reply conversationally in 1-3 concise sentences.",
-          },
-          {
-            role: "user",
-            content: message,
-          },
-        ],
-        max_tokens: 120,
-        temperature: 0.7,
+        messages: conversation,
+        max_tokens: 420,
+        temperature: 0.55,
+        top_p: 0.9,
       }),
     });
 
@@ -92,6 +84,32 @@ app.post("/api/ai", async (req, res) => {
     });
   }
 });
+
+function buildConversation(message, history = []) {
+  const cleanedHistory = Array.isArray(history)
+    ? history
+        .filter((item) => item && (item.role === "user" || item.role === "assistant"))
+        .map((item) => ({
+          role: item.role,
+          content: String(item.content || "").slice(0, 1800),
+        }))
+        .filter((item) => item.content.trim())
+        .slice(-12)
+    : [];
+
+  return [
+    {
+      role: "system",
+      content:
+        "You are Branch Chat, a thoughtful assistant inside a ChatGPT-style app. Be useful, direct, and conversational. Use the conversation context when it helps. If the user asks for code, be precise. If they ask an open question, give a clear answer with a little reasoning. Do not say you are a mock or fallback assistant.",
+    },
+    ...cleanedHistory,
+    {
+      role: "user",
+      content: String(message).slice(0, 4000),
+    },
+  ];
+}
 
 function getMockResponse() {
   const responses = [

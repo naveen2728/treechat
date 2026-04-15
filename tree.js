@@ -236,6 +236,7 @@ function toggleNode(nodeId) {
 async function appendConversation(parentId, message) {
   const parent = findNode(tree, parentId);
   if (!parent) return;
+  const history = buildHistoryFor(parent);
 
   const userNode = createNode(message, "user");
   parent.children.push(userNode);
@@ -243,19 +244,45 @@ async function appendConversation(parentId, message) {
   saveTree();
   renderTree(userNode.id);
 
-  const aiText = await callAi(message);
+  const aiText = await callAi(message, history);
   const assistantNode = createNode(aiText, "assistant");
   parent.children.push(assistantNode);
   saveTree();
   renderTree(assistantNode.id);
 }
 
-async function callAi(message) {
+function buildHistoryFor(parent) {
+  const chain = [];
+  collectPathToNode(tree, parent.id, chain);
+
+  const rootMessages = parent.id === tree.id ? tree.children : chain.slice(1);
+  return rootMessages
+    .filter((node) => node.role === "user" || node.role === "assistant")
+    .slice(-12)
+    .map((node) => ({
+      role: node.role,
+      content: node.text,
+    }));
+}
+
+function collectPathToNode(node, targetId, path) {
+  path.push(node);
+  if (node.id === targetId) return true;
+
+  for (const child of node.children) {
+    if (collectPathToNode(child, targetId, path)) return true;
+  }
+
+  path.pop();
+  return false;
+}
+
+async function callAi(message, history = []) {
   try {
     const response = await fetch("/api/ai", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message }),
+      body: JSON.stringify({ message, history }),
     });
 
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
