@@ -46,23 +46,28 @@ app.post("/api/ai", async (req, res) => {
       });
     }
 
-    const response = await fetch("https://api-inference.huggingface.co/models/microsoft/DialoGPT-medium", {
+    const model = process.env.HF_MODEL || "openai/gpt-oss-20b:fastest";
+    const response = await fetch("https://router.huggingface.co/v1/chat/completions", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${HF_TOKEN}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        inputs: message,
-        options: {
-          wait_for_model: true,
-        },
-        parameters: {
-          max_new_tokens: 80,
-          temperature: 0.7,
-          do_sample: true,
-          return_full_text: false,
-        },
+        model,
+        messages: [
+          {
+            role: "system",
+            content:
+              "You are Branch Chat's helpful assistant. Reply conversationally in 1-3 concise sentences.",
+          },
+          {
+            role: "user",
+            content: message,
+          },
+        ],
+        max_tokens: 120,
+        temperature: 0.7,
       }),
     });
 
@@ -72,16 +77,7 @@ app.post("/api/ai", async (req, res) => {
     }
 
     const data = await response.json();
-    let generatedText = "";
-
-    if (Array.isArray(data) && data.length > 0) {
-      generatedText = data[0].generated_text || "";
-      if (generatedText.startsWith(message)) {
-        generatedText = generatedText.substring(message.length).trim();
-      }
-    } else if (data.generated_text) {
-      generatedText = data.generated_text;
-    }
+    const generatedText = data.choices?.[0]?.message?.content?.trim() || "";
 
     res.json({
       generated_text: generatedText || getMockResponse(),
@@ -92,7 +88,7 @@ app.post("/api/ai", async (req, res) => {
     res.json({
       generated_text: getMockResponse(),
       source: "mock",
-      warning: "AI provider failed, so a fallback reply was used.",
+      warning: `AI provider failed, so a fallback reply was used. ${error.message}`,
     });
   }
 });
