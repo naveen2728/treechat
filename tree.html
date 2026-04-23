@@ -14,8 +14,8 @@
         </div>
         <button class="sidebar-newchat" id="sidebarNewChatBtn" type="button">New chat</button>
         <div class="sidebar-section">
-          <span class="sidebar-label">Workspace</span>
-          <div class="sidebar-item is-active">Current conversation</div>
+          <span class="sidebar-label">Chats</span>
+          <div class="conversation-list" id="conversationList"></div>
         </div>
       </aside>
 
@@ -45,17 +45,16 @@
 
           <div class="chat-footer">
             <form id="chatForm">
-              <input
+              <textarea
                 id="messageInput"
                 class="input"
-                type="text"
-                autocomplete="off"
                 placeholder="Message Branch Chat..."
                 aria-label="Message input"
-              />
+                rows="1"
+              ></textarea>
               <button class="btn" id="sendBtn" type="submit">Send</button>
             </form>
-            <div class="hint">Press Enter to send. Branch buttons create side paths.</div>
+            <div class="hint">Enter sends. Shift + Enter adds a new line.</div>
           </div>
         </div>
       </main>

@@ -1,15 +1,22 @@
 const messagesEl = document.getElementById("messages");
 const formEl = document.getElementById("chatForm");
 const inputEl = document.getElementById("messageInput");
+const sendBtn = document.getElementById("sendBtn");
 const newChatBtn = document.getElementById("newChatBtn");
 const sidebarNewChatBtn = document.getElementById("sidebarNewChatBtn");
+const conversationListEl = document.getElementById("conversationList");
 const exportBtn = document.getElementById("exportBtn");
 const settingsBtn = document.getElementById("settingsBtn");
 
-const STORAGE_KEY = "treechat-tree:v3";
+const STORE_KEY = "treechat-conversations:v1";
+const ACTIVE_KEY = "treechat-active-conversation:v1";
+const LEGACY_TREE_KEY = "treechat-tree:v3";
 
-let tree = loadTree();
+let conversations = loadConversations();
+let activeConversationId = loadActiveConversationId();
 let latestAiWarning = "";
+let activeBranchParentId = null;
+let isGenerating = false;
 
 function createRoot() {
   return {
@@ -21,9 +28,20 @@ function createRoot() {
   };
 }
 
+function createConversation(title = "New chat", tree = createRoot()) {
+  const now = new Date().toISOString();
+  return {
+    id: `chat-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    title,
+    createdAt: now,
+    updatedAt: now,
+    tree,
+  };
+}
+
 function createNode(text, role = "user") {
   return {
-    id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    id: `msg-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     text,
     role,
     expanded: true,
@@ -31,23 +49,68 @@ function createNode(text, role = "user") {
   };
 }
 
-function loadTree() {
+function loadConversations() {
   try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) return JSON.parse(saved);
+    const saved = localStorage.getItem(STORE_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+
+    const legacy = localStorage.getItem(LEGACY_TREE_KEY);
+    if (legacy) {
+      const legacyTree = JSON.parse(legacy);
+      return [createConversation(getConversationTitle(legacyTree), legacyTree)];
+    }
   } catch (error) {
-    console.warn("Failed to load saved chat:", error);
+    console.warn("Failed to load conversations:", error);
   }
 
-  return createRoot();
+  return [createConversation()];
 }
 
-function saveTree() {
+function loadActiveConversationId() {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(tree));
+    const savedId = localStorage.getItem(ACTIVE_KEY);
+    if (savedId && conversations.some((conversation) => conversation.id === savedId)) return savedId;
   } catch (error) {
-    console.warn("Failed to save chat:", error);
+    console.warn("Failed to load active conversation:", error);
   }
+
+  return conversations[0].id;
+}
+
+function getActiveConversation() {
+  return (
+    conversations.find((conversation) => conversation.id === activeConversationId) ||
+    conversations[0]
+  );
+}
+
+function getTree() {
+  return getActiveConversation().tree;
+}
+
+function saveConversations() {
+  try {
+    localStorage.setItem(STORE_KEY, JSON.stringify(conversations));
+    localStorage.setItem(ACTIVE_KEY, activeConversationId);
+  } catch (error) {
+    console.warn("Failed to save conversations:", error);
+  }
+}
+
+function touchConversation(conversation = getActiveConversation()) {
+  conversation.updatedAt = new Date().toISOString();
+  conversation.title = getConversationTitle(conversation.tree);
+}
+
+function getConversationTitle(tree) {
+  const firstUser = tree.children.find((node) => node.role === "user");
+  if (!firstUser) return "New chat";
+
+  const title = firstUser.text.replace(/\s+/g, " ").trim();
+  return title.length > 34 ? `${title.slice(0, 34)}...` : title;
 }
 
 function findNode(root, id) {
@@ -109,13 +172,47 @@ function scrollToBottom() {
   messagesEl.scrollTop = messagesEl.scrollHeight;
 }
 
+function renderApp(animatedNodeId = null) {
+  renderSidebar();
+  renderTree(animatedNodeId);
+  updateInputState();
+}
+
+function renderSidebar() {
+  conversationListEl.innerHTML = "";
+  const sorted = [...conversations].sort(
+    (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+  );
+
+  sorted.forEach((conversation) => {
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className = "conversation-item";
+    if (conversation.id === activeConversationId) item.classList.add("is-active");
+    item.textContent = conversation.title || "New chat";
+    item.addEventListener("click", () => {
+      activeConversationId = conversation.id;
+      activeBranchParentId = null;
+      latestAiWarning = "";
+      saveConversations();
+      renderApp();
+      inputEl.focus();
+    });
+    conversationListEl.appendChild(item);
+  });
+}
+
 function renderTree(animatedNodeId = null) {
+  const tree = getTree();
   messagesEl.innerHTML = "";
+
   if (tree.children.length === 0) {
     renderEmptyState();
   } else {
     tree.children.forEach((child) => renderNode(child, messagesEl, false, animatedNodeId));
   }
+
+  if (isGenerating) renderThinkingState();
   renderAiWarning();
   scrollToBottom();
 }
@@ -134,6 +231,18 @@ function renderEmptyState() {
   emptyEl.appendChild(titleEl);
   emptyEl.appendChild(textEl);
   messagesEl.appendChild(emptyEl);
+}
+
+function renderThinkingState() {
+  const rowEl = document.createElement("div");
+  rowEl.className = "message-row assistant thinking-row";
+
+  const bubbleEl = document.createElement("div");
+  bubbleEl.className = "bubble assistant thinking-bubble";
+  bubbleEl.textContent = "Thinking";
+
+  rowEl.appendChild(bubbleEl);
+  messagesEl.appendChild(rowEl);
 }
 
 function renderAiWarning() {
@@ -164,26 +273,29 @@ function renderNode(node, container, isChild, animatedNodeId) {
   toggleBtn.textContent = node.expanded ? "Collapse" : "Expand";
   toggleBtn.style.display = node.children.length > 0 ? "inline-flex" : "none";
   toggleBtn.setAttribute("aria-expanded", String(node.expanded));
+  toggleBtn.disabled = isGenerating;
   toggleBtn.addEventListener("click", () => toggleNode(node.id));
 
   const branchBtn = document.createElement("button");
   branchBtn.type = "button";
   branchBtn.className = "branch-btn";
-  branchBtn.textContent = "Branch";
-  branchBtn.addEventListener("click", () => branchFromNode(node.id));
+  branchBtn.textContent = activeBranchParentId === node.id ? "Branching" : "Branch";
+  branchBtn.disabled = isGenerating;
+  branchBtn.addEventListener("click", () => openBranchComposer(node.id));
 
   const editBtn = document.createElement("button");
   editBtn.type = "button";
   editBtn.className = "edit-btn";
   editBtn.textContent = "Edit";
+  editBtn.disabled = isGenerating;
   editBtn.addEventListener("click", () => editNode(node.id));
 
   const deleteBtn = document.createElement("button");
   deleteBtn.type = "button";
   deleteBtn.className = "delete-btn";
   deleteBtn.textContent = "Delete";
+  deleteBtn.disabled = isGenerating;
   deleteBtn.addEventListener("click", () => deleteNode(node.id));
-  deleteBtn.style.display = node === tree ? "none" : "inline-flex";
 
   const actionsEl = document.createElement("div");
   actionsEl.className = "message-actions";
@@ -195,6 +307,10 @@ function renderNode(node, container, isChild, animatedNodeId) {
   rowEl.appendChild(bubbleEl);
   rowEl.appendChild(actionsEl);
   nodeEl.appendChild(rowEl);
+
+  if (activeBranchParentId === node.id) {
+    nodeEl.appendChild(createBranchComposer(node.id));
+  }
 
   const childrenEl = document.createElement("div");
   childrenEl.className = "message-children";
@@ -210,6 +326,63 @@ function renderNode(node, container, isChild, animatedNodeId) {
   if (node.id === animatedNodeId) {
     addEnteringAnimation(nodeEl);
   }
+}
+
+function createBranchComposer(parentId) {
+  const form = document.createElement("form");
+  form.className = "branch-composer is-active";
+
+  const textarea = document.createElement("textarea");
+  textarea.className = "branch-input";
+  textarea.rows = 1;
+  textarea.placeholder = "Branch from this message...";
+  textarea.setAttribute("aria-label", "Branch message");
+
+  const controls = document.createElement("div");
+  controls.className = "branch-composer-actions";
+
+  const cancelBtn = document.createElement("button");
+  cancelBtn.type = "button";
+  cancelBtn.className = "composer-cancel-btn";
+  cancelBtn.textContent = "Cancel";
+  cancelBtn.addEventListener("click", () => {
+    activeBranchParentId = null;
+    renderApp();
+  });
+
+  const submitBtn = document.createElement("button");
+  submitBtn.type = "submit";
+  submitBtn.className = "composer-send-btn";
+  submitBtn.textContent = "Send branch";
+
+  controls.appendChild(cancelBtn);
+  controls.appendChild(submitBtn);
+  form.appendChild(textarea);
+  form.appendChild(controls);
+
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const message = textarea.value.trim();
+    if (!message || isGenerating) return;
+    activeBranchParentId = null;
+    appendConversation(parentId, message);
+  });
+
+  textarea.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      form.requestSubmit();
+    }
+  });
+
+  setTimeout(() => {
+    textarea.focus();
+    autoResizeTextarea(textarea);
+  }, 0);
+
+  textarea.addEventListener("input", () => autoResizeTextarea(textarea));
+
+  return form;
 }
 
 function renderMessageText(container, text) {
@@ -295,18 +468,20 @@ function appendInlineText(container, text) {
 }
 
 function toggleNode(nodeId) {
+  const tree = getTree();
   const node = findNode(tree, nodeId);
   if (!node || node.children.length === 0) return;
 
   node.expanded = !node.expanded;
-  saveTree();
+  touchConversation();
+  saveConversations();
 
   const nodeEl = messagesEl.querySelector(`[data-node-id="${nodeId}"]`);
   const childrenEl = nodeEl?.querySelector(":scope > .message-children");
   const toggleBtn = nodeEl?.querySelector(":scope > .message-row .toggle-btn");
 
   if (!childrenEl || !toggleBtn) {
-    renderTree();
+    renderApp();
     return;
   }
 
@@ -316,24 +491,34 @@ function toggleNode(nodeId) {
 }
 
 async function appendConversation(parentId, message) {
+  if (isGenerating) return;
+
+  const conversation = getActiveConversation();
+  const tree = conversation.tree;
   const parent = findNode(tree, parentId);
   if (!parent) return;
-  const history = buildHistoryFor(parent);
 
+  const history = buildHistoryFor(parent);
   const userNode = createNode(message, "user");
   parent.children.push(userNode);
   parent.expanded = true;
-  saveTree();
-  renderTree(userNode.id);
+  latestAiWarning = "";
+  isGenerating = true;
+  touchConversation(conversation);
+  saveConversations();
+  renderApp(userNode.id);
 
   const aiText = await callAi(message, history);
   const assistantNode = createNode(aiText, "assistant");
   parent.children.push(assistantNode);
-  saveTree();
-  renderTree(assistantNode.id);
+  isGenerating = false;
+  touchConversation(conversation);
+  saveConversations();
+  renderApp(assistantNode.id);
 }
 
 function buildHistoryFor(parent) {
+  const tree = getTree();
   const chain = [];
   collectPathToNode(tree, parent.id, chain);
 
@@ -390,17 +575,15 @@ function getMockResponse() {
   return responses[Math.floor(Math.random() * responses.length)];
 }
 
-function branchFromNode(nodeId) {
-  const message = window.prompt("Enter child message text:");
-  if (message === null) return;
-
-  const trimmed = message.trim();
-  if (!trimmed) return;
-
-  appendConversation(nodeId, trimmed);
+function openBranchComposer(nodeId) {
+  activeBranchParentId = activeBranchParentId === nodeId ? null : nodeId;
+  renderApp();
 }
 
 function editNode(nodeId) {
+  if (isGenerating) return;
+
+  const tree = getTree();
   const node = findNode(tree, nodeId);
   if (!node) return;
 
@@ -411,21 +594,28 @@ function editNode(nodeId) {
   if (!trimmed) return;
 
   node.text = trimmed;
-  saveTree();
-  renderTree();
+  touchConversation();
+  saveConversations();
+  renderApp();
 }
 
 function deleteNode(nodeId) {
+  if (isGenerating) return;
+
+  const tree = getTree();
   const parent = findParent(tree, nodeId);
   if (!parent) return;
 
   parent.children = parent.children.filter((child) => child.id !== nodeId);
-  saveTree();
-  renderTree();
+  if (activeBranchParentId === nodeId) activeBranchParentId = null;
+  touchConversation();
+  saveConversations();
+  renderApp();
 }
 
 function exportTree() {
-  const data = JSON.stringify(tree, null, 2);
+  const conversation = getActiveConversation();
+  const data = JSON.stringify(conversation, null, 2);
   const url = URL.createObjectURL(new Blob([data], { type: "application/json" }));
   const link = document.createElement("a");
   link.href = url;
@@ -434,31 +624,58 @@ function exportTree() {
   URL.revokeObjectURL(url);
 }
 
+function startNewChat() {
+  const conversation = createConversation();
+  conversations.unshift(conversation);
+  activeConversationId = conversation.id;
+  activeBranchParentId = null;
+  latestAiWarning = "";
+  saveConversations();
+  renderApp();
+  inputEl.focus();
+}
+
+function updateInputState() {
+  inputEl.disabled = isGenerating;
+  sendBtn.disabled = isGenerating || inputEl.value.trim().length === 0;
+  sendBtn.textContent = isGenerating ? "..." : "Send";
+}
+
+function autoResizeTextarea(textarea) {
+  textarea.style.height = "auto";
+  textarea.style.height = `${Math.min(textarea.scrollHeight, 180)}px`;
+}
+
 formEl.addEventListener("submit", (event) => {
   event.preventDefault();
   const message = inputEl.value.trim();
-  if (!message) return;
+  if (!message || isGenerating) return;
 
   inputEl.value = "";
-  inputEl.focus();
-  appendConversation(tree.id, message);
+  autoResizeTextarea(inputEl);
+  updateInputState();
+  appendConversation(getTree().id, message);
 });
 
-newChatBtn.addEventListener("click", () => {
-  tree = createRoot();
-  saveTree();
-  renderTree();
-  inputEl.focus();
+inputEl.addEventListener("keydown", (event) => {
+  if (event.key === "Enter" && !event.shiftKey) {
+    event.preventDefault();
+    formEl.requestSubmit();
+  }
 });
 
-sidebarNewChatBtn.addEventListener("click", () => {
-  newChatBtn.click();
+inputEl.addEventListener("input", () => {
+  autoResizeTextarea(inputEl);
+  updateInputState();
 });
 
+newChatBtn.addEventListener("click", startNewChat);
+sidebarNewChatBtn.addEventListener("click", startNewChat);
 exportBtn.addEventListener("click", exportTree);
 
 settingsBtn.addEventListener("click", () => {
   window.alert("Settings panel coming soon!");
 });
 
-renderTree();
+autoResizeTextarea(inputEl);
+renderApp();
