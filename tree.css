@@ -555,7 +555,7 @@ button {
   background: rgba(18, 18, 18, 0.98);
 }
 
-form {
+#chatForm {
   width: min(760px, 100%);
   margin: 0 auto;
   display: flex;
@@ -755,7 +755,7 @@ button:focus-visible,
     flex-wrap: wrap;
   }
 
-  form {
+  #chatForm {
     align-items: stretch;
   }
 }
