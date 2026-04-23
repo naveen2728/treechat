@@ -296,6 +296,17 @@ button {
   margin: 0;
 }
 
+.message-paragraph strong,
+.message-list strong {
+  font-weight: 650;
+  color: var(--text);
+}
+
+.message-paragraph em,
+.message-list em {
+  color: var(--muted);
+}
+
 .message-paragraph + .message-paragraph,
 .message-paragraph + .message-list,
 .message-list + .message-paragraph,

@@ -263,7 +263,7 @@ function normalizeMessageText(text) {
 }
 
 function appendInlineText(container, text) {
-  const parts = String(text).split(/(`[^`]+`)/g);
+  const parts = String(text).split(/(`[^`]+`|\*\*[^*]+\*\*|__[^_]+__|\*[^*]+\*|_[^_]+_)/g);
 
   parts.forEach((part) => {
     if (!part) return;
@@ -273,6 +273,20 @@ function appendInlineText(container, text) {
       codeEl.className = "inline-code";
       codeEl.textContent = part.slice(1, -1);
       container.appendChild(codeEl);
+      return;
+    }
+
+    if ((part.startsWith("**") && part.endsWith("**")) || (part.startsWith("__") && part.endsWith("__"))) {
+      const strongEl = document.createElement("strong");
+      strongEl.textContent = part.slice(2, -2);
+      container.appendChild(strongEl);
+      return;
+    }
+
+    if ((part.startsWith("*") && part.endsWith("*")) || (part.startsWith("_") && part.endsWith("_"))) {
+      const emphasisEl = document.createElement("em");
+      emphasisEl.textContent = part.slice(1, -1);
+      container.appendChild(emphasisEl);
       return;
     }
 
