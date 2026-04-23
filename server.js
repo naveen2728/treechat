@@ -22,9 +22,13 @@ app.get("/tree.js", (req, res) => {
 });
 
 app.get("/api/health", (req, res) => {
+  const hasGeminiKey = Boolean(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY);
+  const hasHuggingFaceKey = Boolean(process.env.HF_TOKEN);
+
   res.json({
     ok: true,
-    aiConfigured: Boolean(process.env.HF_TOKEN),
+    aiConfigured: hasGeminiKey || hasHuggingFaceKey,
+    provider: hasGeminiKey ? "gemini" : hasHuggingFaceKey ? "huggingface" : "mock",
   });
 });
 
@@ -36,44 +40,32 @@ app.post("/api/ai", async (req, res) => {
       return res.status(400).json({ error: "Message is required" });
     }
 
-    const HF_TOKEN = process.env.HF_TOKEN;
+    const conversation = buildConversation(message, history);
+    const geminiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
 
-    if (!HF_TOKEN) {
+    if (geminiKey) {
+      const generatedText = await callGemini(conversation, geminiKey);
       return res.json({
-        generated_text: getMockResponse(),
-        source: "mock",
-        warning: "HF_TOKEN is not configured. Add it in Vercel environment variables to enable AI.",
+        generated_text: generatedText || getMockResponse(),
+        source: generatedText ? "gemini" : "mock",
       });
     }
 
-    const model = process.env.HF_MODEL || "openai/gpt-oss-20b:fastest";
-    const conversation = buildConversation(message, history);
-    const response = await fetch("https://router.huggingface.co/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${HF_TOKEN}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model,
-        messages: conversation,
-        max_tokens: 420,
-        temperature: 0.55,
-        top_p: 0.9,
-      }),
-    });
+    const huggingFaceToken = process.env.HF_TOKEN;
 
-    if (!response.ok) {
-      const errorBody = await response.text();
-      throw new Error(`Hugging Face API error: ${response.status} ${errorBody}`);
+    if (huggingFaceToken) {
+      const generatedText = await callHuggingFace(conversation, huggingFaceToken);
+      return res.json({
+        generated_text: generatedText || getMockResponse(),
+        source: generatedText ? "huggingface" : "mock",
+      });
     }
 
-    const data = await response.json();
-    const generatedText = cleanGeneratedText(data.choices?.[0]?.message?.content || "");
-
-    res.json({
-      generated_text: generatedText || getMockResponse(),
-      source: generatedText ? "huggingface" : "mock",
+    return res.json({
+      generated_text: getMockResponse(),
+      source: "mock",
+      warning:
+        "No AI key is configured. Add GEMINI_API_KEY in Vercel environment variables to enable AI.",
     });
   } catch (error) {
     console.error("AI API Error:", error);
@@ -84,6 +76,75 @@ app.post("/api/ai", async (req, res) => {
     });
   }
 });
+
+async function callGemini(conversation, apiKey) {
+  const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  const systemMessage = conversation.find((item) => item.role === "system");
+  const contents = conversation
+    .filter((item) => item.role === "user" || item.role === "assistant")
+    .map((item) => ({
+      role: item.role === "assistant" ? "model" : "user",
+      parts: [{ text: item.content }],
+    }));
+
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      systemInstruction: systemMessage
+        ? {
+            parts: [{ text: systemMessage.content }],
+          }
+        : undefined,
+      contents,
+      generationConfig: {
+        maxOutputTokens: 900,
+        temperature: 0.55,
+        topP: 0.9,
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    throw new Error(`Gemini API error: ${response.status} ${errorBody}`);
+  }
+
+  const data = await response.json();
+  const generatedText =
+    data.candidates?.[0]?.content?.parts?.map((part) => part.text || "").join("") || "";
+
+  return cleanGeneratedText(generatedText);
+}
+
+async function callHuggingFace(conversation, token) {
+  const model = process.env.HF_MODEL || "openai/gpt-oss-20b:fastest";
+  const response = await fetch("https://router.huggingface.co/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model,
+      messages: conversation,
+      max_tokens: 420,
+      temperature: 0.55,
+      top_p: 0.9,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    throw new Error(`Hugging Face API error: ${response.status} ${errorBody}`);
+  }
+
+  const data = await response.json();
+  return cleanGeneratedText(data.choices?.[0]?.message?.content || "");
+}
 
 function cleanGeneratedText(text) {
   return String(text || "")
