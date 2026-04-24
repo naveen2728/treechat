@@ -12,11 +12,13 @@ const STORE_KEY = "treechat-conversations:v1";
 const ACTIVE_KEY = "treechat-active-conversation:v1";
 const LEGACY_TREE_KEY = "treechat-tree:v3";
 
-let conversations = loadConversations();
+let conversations = loadLocalConversations();
 let activeConversationId = loadActiveConversationId();
 let latestAiWarning = "";
 let activeBranchParentId = null;
 let isGenerating = false;
+let isHydrating = false;
+let databaseStatus = "syncing";
 
 function createRoot() {
   return {
@@ -49,7 +51,7 @@ function createNode(text, role = "user") {
   };
 }
 
-function loadConversations() {
+function loadLocalConversations() {
   try {
     const saved = localStorage.getItem(STORE_KEY);
     if (saved) {
@@ -92,6 +94,16 @@ function getTree() {
 }
 
 function saveConversations() {
+  saveLocalState();
+  if (databaseStatus === "ready") {
+    const conversation = getActiveConversation();
+    if (conversation) {
+      void saveConversationToDatabase(conversation);
+    }
+  }
+}
+
+function saveLocalState() {
   try {
     localStorage.setItem(STORE_KEY, JSON.stringify(conversations));
     localStorage.setItem(ACTIVE_KEY, activeConversationId);
@@ -225,8 +237,12 @@ function renderEmptyState() {
   titleEl.textContent = "What are we branching today?";
 
   const textEl = document.createElement("span");
-  textEl.textContent =
-    "Start with a normal message. Use Branch on any reply when you want a side path.";
+  if (isHydrating) {
+    textEl.textContent = "Loading saved conversations...";
+  } else {
+    textEl.textContent =
+      "Start with a normal message. Use Branch on any reply when you want a side path.";
+  }
 
   emptyEl.appendChild(titleEl);
   emptyEl.appendChild(textEl);
@@ -635,6 +651,116 @@ function startNewChat() {
   inputEl.focus();
 }
 
+function mergeConversations(localItems, remoteItems) {
+  const merged = new Map();
+
+  [...remoteItems, ...localItems].forEach((conversation) => {
+    if (!conversation || !conversation.id) return;
+
+    const existing = merged.get(conversation.id);
+    if (!existing) {
+      merged.set(conversation.id, conversation);
+      return;
+    }
+
+    const existingTime = new Date(existing.updatedAt || 0).getTime();
+    const incomingTime = new Date(conversation.updatedAt || 0).getTime();
+    if (incomingTime >= existingTime) {
+      merged.set(conversation.id, conversation);
+    }
+  });
+
+  return [...merged.values()].sort(
+    (a, b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime(),
+  );
+}
+
+async function loadConversationsFromDatabase() {
+  const response = await fetch("/api/conversations");
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+  const data = await response.json();
+  return Array.isArray(data.conversations) ? data.conversations : [];
+}
+
+async function saveConversationToDatabase(conversation) {
+  try {
+    const response = await fetch("/api/conversations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ conversation }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    databaseStatus = "ready";
+  } catch (error) {
+    console.warn("Failed to save conversation to database:", error);
+    databaseStatus = "offline";
+  }
+}
+
+async function syncConversationsToDatabase(items) {
+  const response = await fetch("/api/conversations/bulk-sync", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ conversations: items }),
+  });
+
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+  const data = await response.json();
+  return Array.isArray(data.conversations) ? data.conversations : [];
+}
+
+async function hydrateConversations() {
+  isHydrating = true;
+  renderApp();
+
+  try {
+    const remoteConversations = await loadConversationsFromDatabase();
+    const mergedConversations = mergeConversations(conversations, remoteConversations);
+
+    if (mergedConversations.length === 0) {
+      const freshConversation = createConversation();
+      conversations = [freshConversation];
+      activeConversationId = freshConversation.id;
+    } else {
+      conversations = mergedConversations;
+      if (!conversations.some((conversation) => conversation.id === activeConversationId)) {
+        activeConversationId = conversations[0].id;
+      }
+    }
+
+    saveLocalState();
+    renderApp();
+
+    const syncedConversations = await syncConversationsToDatabase(conversations);
+    if (syncedConversations.length > 0) {
+      conversations = syncedConversations;
+      if (!conversations.some((conversation) => conversation.id === activeConversationId)) {
+        activeConversationId = conversations[0].id;
+      }
+    }
+
+    databaseStatus = "ready";
+    saveLocalState();
+  } catch (error) {
+    console.warn("Falling back to browser storage:", error);
+    databaseStatus = "offline";
+    if (conversations.length === 0) {
+      conversations = [createConversation()];
+      activeConversationId = conversations[0].id;
+      saveLocalState();
+    }
+  } finally {
+    isHydrating = false;
+    renderApp();
+  }
+}
+
 function updateInputState() {
   inputEl.disabled = isGenerating;
   sendBtn.disabled = isGenerating || inputEl.value.trim().length === 0;
@@ -674,8 +800,13 @@ sidebarNewChatBtn.addEventListener("click", startNewChat);
 exportBtn.addEventListener("click", exportTree);
 
 settingsBtn.addEventListener("click", () => {
-  window.alert("Settings panel coming soon!");
+  const details =
+    databaseStatus === "ready"
+      ? "Database sync is active."
+      : "Database sync is offline, so this browser is using local storage right now.";
+  window.alert(`${details}\n\nSettings panel coming soon!`);
 });
 
 autoResizeTextarea(inputEl);
 renderApp();
+void hydrateConversations();
