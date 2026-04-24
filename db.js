@@ -40,7 +40,8 @@ function resolveSqliteDbPath() {
 }
 
 const sqliteDbPath = resolveSqliteDbPath();
-const databaseProvider = process.env.DATABASE_URL ? "postgres" : "sqlite";
+const databaseUrl = String(process.env.DATABASE_URL || "").trim();
+const databaseProvider = databaseUrl ? "postgres" : "sqlite";
 const dbPath = databaseProvider === "postgres" ? "supabase-postgres" : sqliteDbPath;
 
 let sqliteDb = null;
@@ -73,7 +74,7 @@ function initializeSqlite() {
 
 async function initializePostgres() {
   postgresPool = new Pool({
-    connectionString: process.env.DATABASE_URL,
+    connectionString: databaseUrl,
     ssl: { rejectUnauthorized: false },
   });
 
