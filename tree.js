@@ -4,9 +4,11 @@ const inputEl = document.getElementById("messageInput");
 const sendBtn = document.getElementById("sendBtn");
 const newChatBtn = document.getElementById("newChatBtn");
 const sidebarNewChatBtn = document.getElementById("sidebarNewChatBtn");
+const sidebarSearchEl = document.getElementById("sidebarSearch");
 const conversationListEl = document.getElementById("conversationList");
 const exportBtn = document.getElementById("exportBtn");
 const settingsBtn = document.getElementById("settingsBtn");
+const toastLayerEl = document.getElementById("toastLayer");
 
 const STORE_KEY = "treechat-conversations:v1";
 const ACTIVE_KEY = "treechat-active-conversation:v1";
@@ -19,6 +21,8 @@ let activeBranchParentId = null;
 let isGenerating = false;
 let isHydrating = false;
 let databaseStatus = "syncing";
+let conversationSearchTerm = "";
+let pendingDeleteToast = null;
 
 function createRoot() {
   return {
@@ -35,6 +39,8 @@ function createConversation(title = "New chat", tree = createRoot()) {
   return {
     id: `chat-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     title,
+    pinned: false,
+    titleLocked: false,
     createdAt: now,
     updatedAt: now,
     tree,
@@ -56,7 +62,7 @@ function loadLocalConversations() {
     const saved = localStorage.getItem(STORE_KEY);
     if (saved) {
       const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed.map(normalizeConversation);
     }
 
     const legacy = localStorage.getItem(LEGACY_TREE_KEY);
@@ -86,6 +92,14 @@ function getActiveConversation() {
   return conversations.find((conversation) => conversation.id === activeConversationId) || conversations[0] || null;
 }
 
+function normalizeConversation(conversation) {
+  return {
+    ...conversation,
+    pinned: Boolean(conversation?.pinned),
+    titleLocked: Boolean(conversation?.titleLocked),
+  };
+}
+
 function getTree() {
   return getActiveConversation()?.tree || createRoot();
 }
@@ -112,7 +126,9 @@ function saveConversations() {
 function touchConversation(conversation = getActiveConversation()) {
   if (!conversation) return;
   conversation.updatedAt = new Date().toISOString();
-  conversation.title = getConversationTitle(conversation.tree);
+  if (!conversation.titleLocked) {
+    conversation.title = getConversationTitle(conversation.tree);
+  }
 }
 
 function getConversationTitle(tree) {
@@ -190,17 +206,38 @@ function renderApp(animatedNodeId = null) {
 
 function renderSidebar() {
   conversationListEl.innerHTML = "";
-  const sorted = [...conversations].sort(
-    (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
-  );
+  const search = conversationSearchTerm.trim().toLowerCase();
+  const sorted = [...conversations]
+    .sort((a, b) => {
+      if (Boolean(a.pinned) !== Boolean(b.pinned)) {
+        return a.pinned ? -1 : 1;
+      }
+
+      return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+    })
+    .filter((conversation) => {
+      if (!search) return true;
+      return conversation.title.toLowerCase().includes(search);
+    });
+
+  if (sorted.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "conversation-item";
+    empty.textContent = "No matching chats";
+    conversationListEl.appendChild(empty);
+    return;
+  }
 
   sorted.forEach((conversation) => {
-    const item = document.createElement("button");
-    item.type = "button";
+    const item = document.createElement("div");
     item.className = "conversation-item";
     if (conversation.id === activeConversationId) item.classList.add("is-active");
-    item.textContent = conversation.title || "New chat";
-    item.addEventListener("click", () => {
+
+    const mainButton = document.createElement("button");
+    mainButton.type = "button";
+    mainButton.className = "conversation-item-main";
+    mainButton.title = conversation.title || "New chat";
+    mainButton.addEventListener("click", () => {
       activeConversationId = conversation.id;
       activeBranchParentId = null;
       latestAiWarning = "";
@@ -208,6 +245,32 @@ function renderSidebar() {
       renderApp();
       inputEl.focus();
     });
+
+    const title = document.createElement("span");
+    title.className = "conversation-item-title";
+    title.textContent = conversation.title || "New chat";
+    title.addEventListener("dblclick", () => renameConversation(conversation.id));
+
+    const meta = document.createElement("span");
+    meta.className = "conversation-item-meta";
+    meta.textContent = conversation.pinned ? "Pinned" : formatConversationTime(conversation.updatedAt);
+
+    const pinBtn = document.createElement("button");
+    pinBtn.type = "button";
+    pinBtn.className = "conversation-pin";
+    if (conversation.pinned) pinBtn.classList.add("is-active");
+    pinBtn.textContent = conversation.pinned ? "Pinned" : "Pin";
+    pinBtn.title = conversation.pinned ? "Unpin chat" : "Pin chat";
+    pinBtn.setAttribute("aria-label", pinBtn.title);
+    pinBtn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      toggleConversationPin(conversation.id);
+    });
+
+    mainButton.appendChild(title);
+    mainButton.appendChild(meta);
+    item.appendChild(mainButton);
+    item.appendChild(pinBtn);
     conversationListEl.appendChild(item);
   });
 }
@@ -269,6 +332,7 @@ function renderNode(node, container, isChild, animatedNodeId) {
   const nodeEl = document.createElement("div");
   nodeEl.className = "message-node";
   if (isChild) nodeEl.classList.add("child-message");
+  if (node.children.length > 0) nodeEl.classList.add("has-children");
   nodeEl.dataset.nodeId = node.id;
 
   const rowEl = document.createElement("div");
@@ -291,6 +355,8 @@ function renderNode(node, container, isChild, animatedNodeId) {
   branchBtn.type = "button";
   branchBtn.className = "branch-btn";
   branchBtn.textContent = activeBranchParentId === node.id ? "Branching" : "Branch";
+  branchBtn.title = "Create a side branch from this message";
+  branchBtn.setAttribute("aria-label", branchBtn.title);
   branchBtn.disabled = isGenerating;
   branchBtn.addEventListener("click", () => openBranchComposer(node.id));
 
@@ -298,6 +364,8 @@ function renderNode(node, container, isChild, animatedNodeId) {
   editBtn.type = "button";
   editBtn.className = "edit-btn";
   editBtn.textContent = "Edit";
+  editBtn.title = "Edit this message";
+  editBtn.setAttribute("aria-label", editBtn.title);
   editBtn.disabled = isGenerating;
   editBtn.addEventListener("click", () => editNode(node.id));
 
@@ -305,6 +373,8 @@ function renderNode(node, container, isChild, animatedNodeId) {
   deleteBtn.type = "button";
   deleteBtn.className = "delete-btn";
   deleteBtn.textContent = "Delete";
+  deleteBtn.title = "Delete this message or branch";
+  deleteBtn.setAttribute("aria-label", deleteBtn.title);
   deleteBtn.disabled = isGenerating;
   deleteBtn.addEventListener("click", () => deleteNode(node.id));
 
@@ -528,6 +598,8 @@ async function appendConversation(parentId, message) {
   touchConversation(conversation);
   saveConversations();
   renderApp(assistantNode.id);
+  flashNode(parentId);
+  flashNode(assistantNode.id);
 }
 
 function buildHistoryFor(parent) {
@@ -558,23 +630,52 @@ function collectPathToNode(node, targetId, path) {
 }
 
 async function callAi(message, history = []) {
-  try {
-    const response = await fetch("/api/ai", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message, history }),
-    });
+  let lastError = null;
 
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      const response = await fetch("/api/ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message, history }),
+      });
 
-    const data = await response.json();
-    latestAiWarning = data.warning || (data.source === "mock" ? "AI is using fallback replies right now." : "");
-    return data.generated_text || getMockResponse();
-  } catch (error) {
-    console.error("AI API call failed:", error);
-    latestAiWarning = "AI request failed, so a fallback reply was used.";
-    return getMockResponse();
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const busy = response.status === 503 || /busy|overloaded|high demand/i.test(data?.warning || data?.error || "");
+        if (busy && attempt < 2) {
+          latestAiWarning = "AI is currently busy, retrying...";
+          renderApp();
+          await delay(500 * 2 ** attempt);
+          continue;
+        }
+
+        throw new Error(data?.error || `HTTP ${response.status}`);
+      }
+
+      latestAiWarning = data.warning || (data.source === "mock" ? "AI is using fallback replies right now." : "");
+      return data.generated_text || getMockResponse();
+    } catch (error) {
+      lastError = error;
+      const busy = /503|busy|overloaded|high demand/i.test(String(error?.message || ""));
+      if (busy && attempt < 2) {
+        latestAiWarning = "AI is currently busy, retrying...";
+        renderApp();
+        await delay(500 * 2 ** attempt);
+        continue;
+      }
+
+      if (attempt < 2) {
+        latestAiWarning = "AI request failed, retrying...";
+        renderApp();
+        await delay(500 * 2 ** attempt);
+      }
+    }
   }
+
+  console.error("AI API call failed:", lastError);
+  latestAiWarning = "AI request failed, so a fallback reply was used.";
+  return getMockResponse();
 }
 
 function getMockResponse() {
@@ -610,6 +711,7 @@ function editNode(nodeId) {
   touchConversation();
   saveConversations();
   renderApp();
+  flashNode(nodeId);
 }
 
 function deleteNode(nodeId) {
@@ -619,11 +721,24 @@ function deleteNode(nodeId) {
   const parent = findParent(tree, nodeId);
   if (!parent) return;
 
-  parent.children = parent.children.filter((child) => child.id !== nodeId);
+  const index = parent.children.findIndex((child) => child.id === nodeId);
+  if (index === -1) return;
+
+  const [deletedNode] = parent.children.splice(index, 1);
   if (activeBranchParentId === nodeId) activeBranchParentId = null;
   touchConversation();
   saveConversations();
   renderApp();
+  showUndoToast({
+    label: deletedNode.children.length > 0 ? "Branch deleted." : "Message deleted.",
+    undo: () => {
+      parent.children.splice(index, 0, deletedNode);
+      touchConversation();
+      saveConversations();
+      renderApp(deletedNode.id);
+      flashNode(deletedNode.id);
+    },
+  });
 }
 
 function exportTree() {
@@ -654,6 +769,39 @@ function updateInputState() {
   inputEl.disabled = isGenerating;
   sendBtn.disabled = isGenerating || inputEl.value.trim().length === 0;
   sendBtn.textContent = isGenerating ? "..." : "Send";
+}
+
+function formatConversationTime(isoString) {
+  const date = new Date(isoString);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+function renameConversation(conversationId) {
+  const conversation = conversations.find((item) => item.id === conversationId);
+  if (!conversation) return;
+
+  const nextTitle = window.prompt("Rename chat:", conversation.title || "New chat");
+  if (nextTitle === null) return;
+
+  const trimmed = nextTitle.trim();
+  if (!trimmed) return;
+
+  conversation.title = trimmed;
+  conversation.titleLocked = true;
+  touchConversation(conversation);
+  saveConversations();
+  renderApp();
+}
+
+function toggleConversationPin(conversationId) {
+  const conversation = conversations.find((item) => item.id === conversationId);
+  if (!conversation) return;
+
+  conversation.pinned = !conversation.pinned;
+  touchConversation(conversation);
+  saveConversations();
+  renderApp();
 }
 
 function autoResizeTextarea(textarea) {
@@ -749,7 +897,7 @@ async function hydrateConversations() {
 
     const syncedConversations = await syncConversationsToDatabase(conversations);
     if (syncedConversations.length > 0) {
-      conversations = syncedConversations;
+      conversations = syncedConversations.map(normalizeConversation);
       if (!conversations.some((conversation) => conversation.id === activeConversationId)) {
         activeConversationId = conversations[0].id;
       }
@@ -769,6 +917,59 @@ async function hydrateConversations() {
     isHydrating = false;
     renderApp();
   }
+}
+
+function flashNode(nodeId) {
+  window.setTimeout(() => {
+    const nodeEl = messagesEl.querySelector(`[data-node-id="${nodeId}"]`);
+    if (!nodeEl) return;
+    nodeEl.classList.remove("is-highlighted");
+    void nodeEl.offsetWidth;
+    nodeEl.classList.add("is-highlighted");
+    window.setTimeout(() => nodeEl.classList.remove("is-highlighted"), 1100);
+  }, 40);
+}
+
+function showUndoToast({ label, undo }) {
+  if (pendingDeleteToast?.cleanup) {
+    pendingDeleteToast.cleanup();
+  }
+
+  toastLayerEl.innerHTML = "";
+
+  const toast = document.createElement("div");
+  toast.className = "toast";
+
+  const copy = document.createElement("div");
+  copy.className = "toast-copy";
+  copy.textContent = label;
+
+  const action = document.createElement("button");
+  action.type = "button";
+  action.className = "toast-action";
+  action.textContent = "Undo";
+
+  const cleanup = () => {
+    window.clearTimeout(timer);
+    if (toast.parentNode) toast.remove();
+    pendingDeleteToast = null;
+  };
+
+  action.addEventListener("click", () => {
+    cleanup();
+    undo();
+  });
+
+  toast.appendChild(copy);
+  toast.appendChild(action);
+  toastLayerEl.appendChild(toast);
+
+  const timer = window.setTimeout(cleanup, 5000);
+  pendingDeleteToast = { cleanup };
+}
+
+function delay(ms) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
 formEl.addEventListener("submit", (event) => {
@@ -797,6 +998,10 @@ inputEl.addEventListener("input", () => {
 newChatBtn.addEventListener("click", startNewChat);
 sidebarNewChatBtn.addEventListener("click", startNewChat);
 exportBtn.addEventListener("click", exportTree);
+sidebarSearchEl.addEventListener("input", () => {
+  conversationSearchTerm = sidebarSearchEl.value || "";
+  renderSidebar();
+});
 
 settingsBtn.addEventListener("click", () => {
   const details =

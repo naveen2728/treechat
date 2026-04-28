@@ -250,6 +250,30 @@ button {
   flex: 1;
 }
 
+.sidebar-search-wrap {
+  display: flex;
+}
+
+.sidebar-search {
+  width: 100%;
+  min-height: 38px;
+  padding: 9px 11px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text);
+  outline: none;
+}
+
+.sidebar-search::placeholder {
+  color: var(--quiet);
+}
+
+.sidebar-search:focus {
+  border-color: rgba(16, 163, 127, 0.52);
+  box-shadow: 0 0 0 3px rgba(16, 163, 127, 0.12);
+}
+
 .sidebar-label {
   padding: 0 4px;
   color: var(--quiet);
@@ -267,22 +291,61 @@ button {
 
 .conversation-item {
   width: 100%;
-  padding: 10px 12px;
-  border: 0;
+  padding: 8px 10px;
+  border: 1px solid transparent;
   border-radius: 8px;
   background: transparent;
   color: var(--muted);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.conversation-item-main {
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  padding: 2px 0;
   text-align: left;
   cursor: pointer;
+}
+
+.conversation-item-title {
+  display: block;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.conversation-item-meta {
+  display: block;
+  margin-top: 3px;
+  font-size: 11px;
+  color: var(--quiet);
+}
+
+.conversation-pin {
+  min-width: 30px;
+  min-height: 30px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--quiet);
+  cursor: pointer;
+}
+
+.conversation-pin.is-active {
+  color: var(--text);
+  background: rgba(16, 163, 127, 0.14);
+  border-color: rgba(16, 163, 127, 0.28);
 }
 
 .conversation-item:hover,
 .conversation-item.is-active {
   background: rgba(255, 255, 255, 0.07);
   color: var(--text);
+  border-color: rgba(255, 255, 255, 0.06);
 }
 
 .main-stage {
@@ -402,10 +465,15 @@ button {
 
 .message-node {
   width: 100%;
+  position: relative;
 }
 
 .message-node.is-entering {
   animation: message-rise 360ms cubic-bezier(0.2, 0.82, 0.24, 1) both;
+}
+
+.message-node.is-highlighted .bubble {
+  animation: message-highlight 1s ease;
 }
 
 .message-row {
@@ -561,8 +629,8 @@ button {
 .message-children {
   position: relative;
   width: min(760px, calc(100% - 32px));
-  margin: 2px auto 8px;
-  padding-left: 24px;
+  margin: 4px auto 10px;
+  padding-left: 30px;
   max-height: none;
   opacity: 1;
   overflow: hidden;
@@ -579,10 +647,16 @@ button {
 .message-children::before {
   content: "";
   position: absolute;
-  left: 10px;
-  top: 4px;
-  bottom: 8px;
-  border-left: 1px solid rgba(16, 163, 127, 0.38);
+  left: 12px;
+  top: 0;
+  bottom: 10px;
+  width: 1px;
+  background: linear-gradient(
+    180deg,
+    rgba(16, 163, 127, 0.12),
+    rgba(16, 163, 127, 0.42) 18%,
+    rgba(16, 163, 127, 0.22)
+  );
   transform-origin: top;
 }
 
@@ -595,11 +669,22 @@ button {
 .child-message::before {
   content: "";
   position: absolute;
-  left: -14px;
-  top: 28px;
+  left: -18px;
+  top: 30px;
   width: 18px;
-  border-top: 1px solid rgba(16, 163, 127, 0.38);
+  height: 1px;
+  background: rgba(16, 163, 127, 0.4);
   transform-origin: left;
+}
+
+.message-node.has-children > .message-row::after {
+  content: "";
+  position: absolute;
+  left: max(16px, calc(50% - 368px));
+  top: calc(100% - 6px);
+  width: 1px;
+  height: 16px;
+  background: rgba(16, 163, 127, 0.4);
 }
 
 .child-message.is-entering::before {
@@ -630,8 +715,8 @@ button {
   margin: 0 auto 10px;
   padding: 10px;
   border-radius: 8px;
-  border: 1px solid rgba(16, 163, 127, 0.28);
-  background: rgba(16, 163, 127, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -743,6 +828,49 @@ button:disabled {
   color: var(--quiet);
 }
 
+.toast-layer {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: none;
+}
+
+.toast {
+  min-width: 260px;
+  max-width: 340px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(24, 24, 24, 0.96);
+  box-shadow: var(--shadow);
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  pointer-events: auto;
+  animation: toast-in 180ms ease;
+}
+
+.toast-copy {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.toast-action {
+  border: 1px solid rgba(16, 163, 127, 0.3);
+  background: rgba(16, 163, 127, 0.12);
+  color: var(--text);
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 650;
+}
+
 .sidebar-newchat:hover,
 .newchat-btn:hover,
 .settings-btn:hover,
@@ -826,6 +954,32 @@ button:focus-visible,
   }
 }
 
+@keyframes message-highlight {
+  0% {
+    box-shadow: 0 0 0 0 rgba(16, 163, 127, 0.4);
+    border-color: rgba(16, 163, 127, 0.65);
+    background: rgba(16, 163, 127, 0.12);
+  }
+
+  100% {
+    box-shadow: 0 0 0 12px rgba(16, 163, 127, 0);
+    border-color: transparent;
+    background: inherit;
+  }
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 @media (max-width: 760px) {
   body {
     overflow: auto;
@@ -849,6 +1003,17 @@ button:focus-visible,
 
   .sidebar-section {
     max-height: 160px;
+  }
+
+  .toast-layer {
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+  }
+
+  .toast {
+    min-width: 0;
+    max-width: none;
   }
 
   .main-stage {

@@ -13,6 +13,15 @@
           <span>Branch Chat</span>
         </div>
         <button class="sidebar-newchat" id="sidebarNewChatBtn" type="button">New chat</button>
+        <div class="sidebar-search-wrap">
+          <input
+            class="sidebar-search"
+            id="sidebarSearch"
+            type="search"
+            placeholder="Search chats"
+            aria-label="Search chats"
+          />
+        </div>
         <div class="sidebar-section">
           <span class="sidebar-label">Chats</span>
           <div class="conversation-list" id="conversationList"></div>
@@ -60,6 +69,7 @@
       </main>
     </div>
 
+    <div class="toast-layer" id="toastLayer" aria-live="polite"></div>
     <script src="tree.js"></script>
   </body>
 </html>
