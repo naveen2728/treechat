@@ -1,34 +1,63 @@
 const path = require("path");
+const fs = require("fs");
 const express = require("express");
 const cors = require("cors");
 const fetch = require("node-fetch");
-const {
-  dbPath,
-  databaseProvider,
-  ensureInitialized,
-  listConversations,
-  getConversation,
-  upsertConversation,
-  bulkUpsertConversations,
-  deleteConversation,
-} = require("./db");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Read static files once at startup
+let HTML_CONTENT = "";
+let CSS_CONTENT = "";
+let JS_CONTENT = "";
+
+try {
+  const htmlPath = path.join(__dirname, "tree.html");
+  const cssPath = path.join(__dirname, "tree.css");
+  const jsPath = path.join(__dirname, "tree.js");
+
+  if (fs.existsSync(htmlPath)) {
+    HTML_CONTENT = fs.readFileSync(htmlPath, "utf-8");
+  }
+  if (fs.existsSync(cssPath)) {
+    CSS_CONTENT = fs.readFileSync(cssPath, "utf-8");
+  }
+  if (fs.existsSync(jsPath)) {
+    JS_CONTENT = fs.readFileSync(jsPath, "utf-8");
+  }
+} catch (err) {
+  console.error("Error reading static files:", err.message);
+}
 
 app.use(cors());
 app.use(express.json());
 
 app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "tree.html"));
+  if (HTML_CONTENT) {
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.send(HTML_CONTENT);
+  } else {
+    res.status(500).send("HTML file not available");
+  }
 });
 
 app.get("/tree.css", (req, res) => {
-  res.sendFile(path.join(__dirname, "tree.css"));
+  if (CSS_CONTENT) {
+    res.setHeader("Content-Type", "text/css; charset=utf-8");
+    res.send(CSS_CONTENT);
+  } else {
+    res.status(500).send("CSS file not available");
+  }
 });
 
 app.get("/tree.js", (req, res) => {
-  res.sendFile(path.join(__dirname, "tree.js"));
+  if (JS_CONTENT) {
+    res.setHeader("Content-Type", "application/javascript; charset=utf-8");
+    res.send(JS_CONTENT);
+  } else {
+    res.status(500).send("JS file not available");
+  }
 });
 
 app.get("/api/health", (req, res) => {
@@ -39,80 +68,7 @@ app.get("/api/health", (req, res) => {
     ok: true,
     aiConfigured: hasGeminiKey || hasHuggingFaceKey,
     provider: hasGeminiKey ? "gemini" : hasHuggingFaceKey ? "huggingface" : "mock",
-    database: {
-      provider: databaseProvider,
-      configured: true,
-      path: dbPath,
-    },
   });
-});
-
-app.get("/api/conversations", async (req, res) => {
-  try {
-    await ensureInitialized();
-    res.json({ conversations: await listConversations() });
-  } catch (error) {
-    console.error("Failed to list conversations:", error);
-    res.status(500).json({ error: "Failed to load conversations" });
-  }
-});
-
-app.get("/api/conversations/:id", async (req, res) => {
-  try {
-    await ensureInitialized();
-    const conversation = await getConversation(req.params.id);
-    if (!conversation) {
-      return res.status(404).json({ error: "Conversation not found" });
-    }
-
-    return res.json({ conversation });
-  } catch (error) {
-    console.error("Failed to get conversation:", error);
-    return res.status(500).json({ error: "Failed to load conversation" });
-  }
-});
-
-app.post("/api/conversations", async (req, res) => {
-  try {
-    const { conversation } = req.body || {};
-    if (!conversation || !conversation.id) {
-      return res.status(400).json({ error: "A conversation with an id is required" });
-    }
-
-    await ensureInitialized();
-    const savedConversation = await upsertConversation(conversation);
-    return res.json({ conversation: savedConversation });
-  } catch (error) {
-    console.error("Failed to save conversation:", error);
-    return res.status(500).json({ error: "Failed to save conversation" });
-  }
-});
-
-app.post("/api/conversations/bulk-sync", async (req, res) => {
-  try {
-    const { conversations } = req.body || {};
-    if (!Array.isArray(conversations)) {
-      return res.status(400).json({ error: "conversations must be an array" });
-    }
-
-    await ensureInitialized();
-    const savedConversations = await bulkUpsertConversations(conversations);
-    return res.json({ conversations: savedConversations });
-  } catch (error) {
-    console.error("Failed to bulk sync conversations:", error);
-    return res.status(500).json({ error: "Failed to sync conversations" });
-  }
-});
-
-app.delete("/api/conversations/:id", async (req, res) => {
-  try {
-    await ensureInitialized();
-    const deleted = await deleteConversation(req.params.id);
-    return res.json({ deleted });
-  } catch (error) {
-    console.error("Failed to delete conversation:", error);
-    return res.status(500).json({ error: "Failed to delete conversation" });
-  }
 });
 
 app.post("/api/ai", async (req, res) => {
