@@ -1,16 +1,16 @@
 :root {
-  --app-bg: #121212;
-  --sidebar-bg: #171717;
-  --surface: #1f1f1f;
-  --surface-2: #262626;
-  --surface-3: #303030;
-  --text: #f4f4f4;
-  --muted: #b8b8b8;
-  --quiet: #888888;
+  --app-bg: #101111;
+  --sidebar-bg: #151716;
+  --surface: #1d201e;
+  --surface-2: #252926;
+  --surface-3: #2d332f;
+  --text: #f3f5f2;
+  --muted: #afb5ae;
+  --quiet: #7f8780;
   --border: rgba(255, 255, 255, 0.1);
   --border-strong: rgba(255, 255, 255, 0.16);
-  --accent: #10a37f;
-  --accent-strong: #13c79b;
+  --accent: #24a883;
+  --accent-strong: #34bf98;
   --danger: #ef6f6c;
   --warning: #e6c15a;
   --shadow: 0 22px 70px rgba(0, 0, 0, 0.36);
@@ -294,12 +294,12 @@ button {
   padding: 8px 10px;
   border: 1px solid transparent;
   border-radius: 8px;
-  background: transparent;
+  background: rgba(255, 255, 255, 0.02);
   color: var(--muted);
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 8px;
+  align-items: start;
+  gap: 10px;
 }
 
 .conversation-item-main {
@@ -312,11 +312,18 @@ button {
   cursor: pointer;
 }
 
+.conversation-item-main:hover .conversation-item-title {
+  color: var(--text);
+}
+
 .conversation-item-title {
   display: block;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  color: inherit;
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .conversation-item-meta {
@@ -326,19 +333,49 @@ button {
   color: var(--quiet);
 }
 
-.conversation-pin {
-  min-width: 30px;
-  min-height: 30px;
-  border: 1px solid transparent;
-  background: transparent;
+.conversation-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  opacity: 0.76;
+}
+
+.conversation-item:hover .conversation-actions,
+.conversation-item.is-active .conversation-actions {
+  opacity: 1;
+}
+
+.conversation-action {
+  min-width: 0;
+  min-height: 28px;
+  padding: 0 9px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
   color: var(--quiet);
   cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.conversation-pin {
+  color: var(--muted);
 }
 
 .conversation-pin.is-active {
   color: var(--text);
-  background: rgba(16, 163, 127, 0.14);
-  border-color: rgba(16, 163, 127, 0.28);
+  background: rgba(36, 168, 131, 0.18);
+  border-color: rgba(36, 168, 131, 0.35);
+}
+
+.conversation-delete {
+  color: #d1a8a6;
+}
+
+.conversation-delete:hover {
+  background: rgba(239, 111, 108, 0.1);
+  border-color: rgba(239, 111, 108, 0.22);
+  color: #ffd2cf;
 }
 
 .conversation-item:hover,
@@ -387,7 +424,7 @@ button {
 .chat-header {
   padding: 12px 22px;
   border-bottom: 1px solid var(--border);
-  background: rgba(18, 18, 18, 0.95);
+  background: rgba(16, 17, 17, 0.96);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -713,10 +750,10 @@ button {
 .branch-composer {
   width: min(760px, calc(100% - 32px));
   margin: 0 auto 10px;
-  padding: 10px;
+  padding: 12px;
   border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.03);
+  background: rgba(255, 255, 255, 0.025);
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -730,7 +767,7 @@ button {
   padding: 11px 12px;
   border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.12);
-  background: #2f2f2f;
+  background: #2c302d;
   color: var(--text);
   outline: none;
   overflow-y: auto;
@@ -744,25 +781,27 @@ button {
 
 .composer-cancel-btn,
 .composer-send-btn {
-  padding: 8px 10px;
+  min-height: 36px;
+  padding: 8px 12px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: transparent;
   color: var(--muted);
   cursor: pointer;
+  font-size: 12px;
 }
 
 .composer-send-btn {
-  background: #f4f4f4;
-  color: #111111;
-  border-color: rgba(255, 255, 255, 0.12);
-  font-weight: 650;
+  background: rgba(36, 168, 131, 0.16);
+  color: var(--text);
+  border-color: rgba(36, 168, 131, 0.28);
+  font-weight: 600;
 }
 
 .chat-footer {
   padding: 16px 18px 18px;
   border-top: 1px solid var(--border);
-  background: rgba(18, 18, 18, 0.98);
+  background: rgba(16, 17, 17, 0.98);
 }
 
 #chatForm {
@@ -781,7 +820,7 @@ button {
   padding: 14px 16px;
   border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.12);
-  background: #2f2f2f;
+  background: #2c302d;
   color: var(--text);
   outline: none;
   resize: none;
@@ -806,11 +845,14 @@ button {
 }
 
 .btn {
-  padding: 14px 16px;
-  border-color: rgba(255, 255, 255, 0.12);
-  background: #f4f4f4;
-  color: #111111;
-  font-weight: 650;
+  min-width: 92px;
+  min-height: 50px;
+  padding: 12px 18px;
+  border-color: rgba(36, 168, 131, 0.34);
+  background: linear-gradient(180deg, rgba(49, 184, 145, 0.98), rgba(31, 145, 112, 0.98));
+  color: #f7fffc;
+  font-weight: 600;
+  box-shadow: 0 10px 24px rgba(12, 79, 61, 0.28);
 }
 
 .btn:disabled,
@@ -893,7 +935,7 @@ button:disabled {
 }
 
 .btn:hover {
-  background: var(--accent-strong);
+  background: linear-gradient(180deg, rgba(55, 194, 153, 1), rgba(34, 156, 120, 1));
   transform: translateY(-1px);
 }
 
@@ -1052,6 +1094,14 @@ button:focus-visible,
     opacity: 1;
     transform: none;
     flex-wrap: wrap;
+  }
+
+  .conversation-item {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .conversation-actions {
+    justify-content: flex-start;
   }
 
   #chatForm {

@@ -257,7 +257,7 @@ function renderSidebar() {
 
     const pinBtn = document.createElement("button");
     pinBtn.type = "button";
-    pinBtn.className = "conversation-pin";
+    pinBtn.className = "conversation-action conversation-pin";
     if (conversation.pinned) pinBtn.classList.add("is-active");
     pinBtn.textContent = conversation.pinned ? "Pinned" : "Pin";
     pinBtn.title = conversation.pinned ? "Unpin chat" : "Pin chat";
@@ -267,10 +267,26 @@ function renderSidebar() {
       toggleConversationPin(conversation.id);
     });
 
+    const deleteBtn = document.createElement("button");
+    deleteBtn.type = "button";
+    deleteBtn.className = "conversation-action conversation-delete";
+    deleteBtn.textContent = "Delete";
+    deleteBtn.title = "Delete chat";
+    deleteBtn.setAttribute("aria-label", deleteBtn.title);
+    deleteBtn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      deleteConversation(conversation.id);
+    });
+
+    const actions = document.createElement("div");
+    actions.className = "conversation-actions";
+    actions.appendChild(pinBtn);
+    actions.appendChild(deleteBtn);
+
     mainButton.appendChild(title);
     mainButton.appendChild(meta);
     item.appendChild(mainButton);
-    item.appendChild(pinBtn);
+    item.appendChild(actions);
     conversationListEl.appendChild(item);
   });
 }
@@ -802,6 +818,39 @@ function toggleConversationPin(conversationId) {
   touchConversation(conversation);
   saveConversations();
   renderApp();
+}
+
+function deleteConversation(conversationId) {
+  const index = conversations.findIndex((item) => item.id === conversationId);
+  if (index === -1) return;
+
+  const [deletedConversation] = conversations.splice(index, 1);
+  const previousActiveId = activeConversationId;
+
+  if (conversations.length === 0) {
+    const fallback = createConversation();
+    conversations = [fallback];
+    activeConversationId = fallback.id;
+  } else if (activeConversationId === conversationId) {
+    activeConversationId = conversations[Math.max(0, index - 1)].id;
+  }
+
+  saveConversations();
+  renderApp();
+
+  showUndoToast({
+    label: "Chat deleted.",
+    undo: () => {
+      if (conversations.length === 1 && conversations[0].tree.children.length === 0) {
+        conversations = [];
+      }
+
+      conversations.splice(index, 0, deletedConversation);
+      activeConversationId = previousActiveId;
+      saveConversations();
+      renderApp();
+    },
+  });
 }
 
 function autoResizeTextarea(textarea) {
