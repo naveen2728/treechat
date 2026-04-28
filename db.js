@@ -1,7 +1,6 @@
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
-const Database = require("better-sqlite3");
 const { Pool } = require("pg");
 
 function createRoot() {
@@ -47,6 +46,7 @@ const dbPath = databaseProvider === "postgres" ? "supabase-postgres" : sqliteDbP
 let sqliteDb = null;
 let postgresPool = null;
 let initPromise = null;
+let SqliteDatabase = null;
 
 function ensureInitialized() {
   if (!initPromise) {
@@ -57,8 +57,12 @@ function ensureInitialized() {
 }
 
 function initializeSqlite() {
+  if (!SqliteDatabase) {
+    SqliteDatabase = require("better-sqlite3");
+  }
+
   fs.mkdirSync(path.dirname(sqliteDbPath), { recursive: true });
-  sqliteDb = new Database(sqliteDbPath);
+  sqliteDb = new SqliteDatabase(sqliteDbPath);
   sqliteDb.pragma("journal_mode = WAL");
 
   sqliteDb.exec(`
