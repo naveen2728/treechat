@@ -19,6 +19,7 @@ function normalizeConversation(conversation) {
 
   return {
     id: String(conversation?.id || ""),
+    userId: String(conversation?.userId || ""),
     title: String(conversation?.title || "New chat"),
     tree,
     createdAt: String(conversation?.createdAt || now),
@@ -68,12 +69,19 @@ function initializeSqlite() {
   sqliteDb.exec(`
     CREATE TABLE IF NOT EXISTS conversations (
       id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL DEFAULT '',
       title TEXT NOT NULL,
       tree_json TEXT NOT NULL,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
   `);
+
+  const columns = sqliteDb.prepare("PRAGMA table_info(conversations)").all();
+  const hasUserId = columns.some((column) => column.name === "user_id");
+  if (!hasUserId) {
+    sqliteDb.exec("ALTER TABLE conversations ADD COLUMN user_id TEXT NOT NULL DEFAULT ''");
+  }
 }
 
 async function initializePostgres() {
@@ -85,59 +93,70 @@ async function initializePostgres() {
   await postgresPool.query(`
     CREATE TABLE IF NOT EXISTS conversations (
       id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL DEFAULT '',
       title TEXT NOT NULL,
       tree_json JSONB NOT NULL,
       created_at TIMESTAMPTZ NOT NULL,
       updated_at TIMESTAMPTZ NOT NULL
     );
   `);
-}
 
-async function listConversations() {
-  await ensureInitialized();
-
-  if (databaseProvider === "postgres") {
-    const result = await postgresPool.query(`
-      SELECT id, title, tree_json, created_at, updated_at
-      FROM conversations
-      ORDER BY updated_at DESC, id DESC
-    `);
-
-    return result.rows.map(parsePostgresRow);
-  }
-
-  const statement = sqliteDb.prepare(`
-    SELECT id, title, tree_json, created_at, updated_at
-    FROM conversations
-    ORDER BY datetime(updated_at) DESC, id DESC
+  await postgresPool.query(`
+    ALTER TABLE conversations
+    ADD COLUMN IF NOT EXISTS user_id TEXT NOT NULL DEFAULT ''
   `);
-
-  return statement.all().map(parseSqliteRow);
 }
 
-async function getConversation(id) {
+async function listConversations(userId) {
   await ensureInitialized();
 
   if (databaseProvider === "postgres") {
     const result = await postgresPool.query(
       `
-        SELECT id, title, tree_json, created_at, updated_at
+      SELECT id, user_id, title, tree_json, created_at, updated_at
+      FROM conversations
+      WHERE user_id = $1
+      ORDER BY updated_at DESC, id DESC
+    `,
+      [userId],
+    );
+
+    return result.rows.map(parsePostgresRow);
+  }
+
+  const statement = sqliteDb.prepare(`
+    SELECT id, user_id, title, tree_json, created_at, updated_at
+    FROM conversations
+    WHERE user_id = ?
+    ORDER BY datetime(updated_at) DESC, id DESC
+  `);
+
+  return statement.all(userId).map(parseSqliteRow);
+}
+
+async function getConversation(id, userId) {
+  await ensureInitialized();
+
+  if (databaseProvider === "postgres") {
+    const result = await postgresPool.query(
+      `
+        SELECT id, user_id, title, tree_json, created_at, updated_at
         FROM conversations
-        WHERE id = $1
+        WHERE id = $1 AND user_id = $2
       `,
-      [id],
+      [id, userId],
     );
 
     return parsePostgresRow(result.rows[0]);
   }
 
   const statement = sqliteDb.prepare(`
-    SELECT id, title, tree_json, created_at, updated_at
+    SELECT id, user_id, title, tree_json, created_at, updated_at
     FROM conversations
-    WHERE id = ?
+    WHERE id = ? AND user_id = ?
   `);
 
-  return parseSqliteRow(statement.get(id));
+  return parseSqliteRow(statement.get(id, userId));
 }
 
 async function upsertConversation(conversation) {
@@ -151,9 +170,10 @@ async function upsertConversation(conversation) {
   if (databaseProvider === "postgres") {
     await postgresPool.query(
       `
-        INSERT INTO conversations (id, title, tree_json, created_at, updated_at)
-        VALUES ($1, $2, $3::jsonb, $4::timestamptz, $5::timestamptz)
+        INSERT INTO conversations (id, user_id, title, tree_json, created_at, updated_at)
+        VALUES ($1, $2, $3, $4::jsonb, $5::timestamptz, $6::timestamptz)
         ON CONFLICT(id) DO UPDATE SET
+          user_id = EXCLUDED.user_id,
           title = EXCLUDED.title,
           tree_json = EXCLUDED.tree_json,
           created_at = EXCLUDED.created_at,
@@ -161,6 +181,7 @@ async function upsertConversation(conversation) {
       `,
       [
         normalized.id,
+        normalized.userId,
         normalized.title,
         JSON.stringify(normalized.tree),
         normalized.createdAt,
@@ -168,13 +189,14 @@ async function upsertConversation(conversation) {
       ],
     );
 
-    return getConversation(normalized.id);
+    return getConversation(normalized.id, normalized.userId);
   }
 
   const statement = sqliteDb.prepare(`
-    INSERT INTO conversations (id, title, tree_json, created_at, updated_at)
-    VALUES (@id, @title, @tree_json, @created_at, @updated_at)
+    INSERT INTO conversations (id, user_id, title, tree_json, created_at, updated_at)
+    VALUES (@id, @user_id, @title, @tree_json, @created_at, @updated_at)
     ON CONFLICT(id) DO UPDATE SET
+      user_id = excluded.user_id,
       title = excluded.title,
       tree_json = excluded.tree_json,
       created_at = excluded.created_at,
@@ -183,13 +205,14 @@ async function upsertConversation(conversation) {
 
   statement.run({
     id: normalized.id,
+    user_id: normalized.userId,
     title: normalized.title,
     tree_json: JSON.stringify(normalized.tree),
     created_at: normalized.createdAt,
     updated_at: normalized.updatedAt,
   });
 
-  return getConversation(normalized.id);
+  return getConversation(normalized.id, normalized.userId);
 }
 
 async function bulkUpsertConversations(conversations) {
@@ -207,9 +230,10 @@ async function bulkUpsertConversations(conversations) {
         const normalized = normalizeConversation(conversation);
         await client.query(
           `
-            INSERT INTO conversations (id, title, tree_json, created_at, updated_at)
-            VALUES ($1, $2, $3::jsonb, $4::timestamptz, $5::timestamptz)
+            INSERT INTO conversations (id, user_id, title, tree_json, created_at, updated_at)
+            VALUES ($1, $2, $3, $4::jsonb, $5::timestamptz, $6::timestamptz)
             ON CONFLICT(id) DO UPDATE SET
+              user_id = EXCLUDED.user_id,
               title = EXCLUDED.title,
               tree_json = EXCLUDED.tree_json,
               created_at = EXCLUDED.created_at,
@@ -217,6 +241,7 @@ async function bulkUpsertConversations(conversations) {
           `,
           [
             normalized.id,
+            normalized.userId,
             normalized.title,
             JSON.stringify(normalized.tree),
             normalized.createdAt,
@@ -232,13 +257,14 @@ async function bulkUpsertConversations(conversations) {
       client.release();
     }
 
-    return listConversations();
+    return listConversations(items[0]?.userId || "");
   }
 
   const statement = sqliteDb.prepare(`
-    INSERT INTO conversations (id, title, tree_json, created_at, updated_at)
-    VALUES (@id, @title, @tree_json, @created_at, @updated_at)
+    INSERT INTO conversations (id, user_id, title, tree_json, created_at, updated_at)
+    VALUES (@id, @user_id, @title, @tree_json, @created_at, @updated_at)
     ON CONFLICT(id) DO UPDATE SET
+      user_id = excluded.user_id,
       title = excluded.title,
       tree_json = excluded.tree_json,
       created_at = excluded.created_at,
@@ -250,6 +276,7 @@ async function bulkUpsertConversations(conversations) {
       const normalized = normalizeConversation(conversation);
       statement.run({
         id: normalized.id,
+        user_id: normalized.userId,
         title: normalized.title,
         tree_json: JSON.stringify(normalized.tree),
         created_at: normalized.createdAt,
@@ -259,19 +286,19 @@ async function bulkUpsertConversations(conversations) {
   });
 
   transaction(items);
-  return listConversations();
+  return listConversations(items[0]?.userId || "");
 }
 
-async function deleteConversation(id) {
+async function deleteConversation(id, userId) {
   await ensureInitialized();
 
   if (databaseProvider === "postgres") {
     const result = await postgresPool.query(
       `
         DELETE FROM conversations
-        WHERE id = $1
+        WHERE id = $1 AND user_id = $2
       `,
-      [id],
+      [id, userId],
     );
 
     return result.rowCount > 0;
@@ -279,10 +306,10 @@ async function deleteConversation(id) {
 
   const statement = sqliteDb.prepare(`
     DELETE FROM conversations
-    WHERE id = ?
+    WHERE id = ? AND user_id = ?
   `);
 
-  return statement.run(id).changes > 0;
+  return statement.run(id, userId).changes > 0;
 }
 
 function parseSqliteRow(row) {
@@ -290,6 +317,7 @@ function parseSqliteRow(row) {
 
   return {
     id: row.id,
+    userId: row.user_id,
     title: row.title,
     tree: JSON.parse(row.tree_json),
     createdAt: row.created_at,
@@ -302,6 +330,7 @@ function parsePostgresRow(row) {
 
   return {
     id: row.id,
+    userId: row.user_id,
     title: row.title,
     tree: row.tree_json,
     createdAt: new Date(row.created_at).toISOString(),
