@@ -6,36 +6,7 @@
     <link rel="stylesheet" href="tree.css" />
   </head>
   <body>
-    <div class="auth-shell" id="authShell">
-      <div class="auth-panel">
-        <div class="auth-brand">
-          <span class="brand-mark">B</span>
-          <span>Branch Chat</span>
-        </div>
-        <div class="auth-copy">
-          <strong>Sign in to your chats</strong>
-          <span>Keep your conversations synced to your own account.</span>
-        </div>
-        <form id="authForm" class="auth-form">
-          <div class="auth-mode-toggle">
-            <button type="button" class="auth-mode-btn is-active" id="signInModeBtn">Sign in</button>
-            <button type="button" class="auth-mode-btn" id="signUpModeBtn">Create account</button>
-          </div>
-          <label class="auth-field">
-            <span>Email</span>
-            <input id="authEmail" type="email" autocomplete="email" required />
-          </label>
-          <label class="auth-field">
-            <span>Password</span>
-            <input id="authPassword" type="password" autocomplete="current-password" required />
-          </label>
-          <button id="authSubmitBtn" class="auth-submit-btn" type="submit">Sign in</button>
-        </form>
-        <div class="auth-status" id="authStatus" aria-live="polite"></div>
-      </div>
-    </div>
-
-    <div class="app-shell is-hidden" id="appShell">
+    <div class="app-shell">
       <aside class="sidebar" aria-label="Conversation sidebar">
         <div class="brand">
           <span class="brand-mark">B</span>
@@ -58,10 +29,6 @@
               <span>Send normally. Use Branch only when you want a side path.</span>
             </div>
             <div class="chat-actions">
-              <span class="user-pill" id="userPill"></span>
-              <button class="logout-btn" id="logoutBtn" type="button" aria-label="Log out">
-                Log out
-              </button>
               <button class="settings-btn" id="settingsBtn" type="button" aria-label="Settings">
                 Settings
               </button>
@@ -93,7 +60,6 @@
       </main>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="tree.js"></script>
   </body>
 </html>

@@ -16,8 +16,7 @@ const {
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const supabaseUrl = String(process.env.SUPABASE_URL || "").trim();
-const supabaseAnonKey = String(process.env.SUPABASE_ANON_KEY || "").trim();
+const DEFAULT_USER_ID = "guest";
 
 // Read static files once at startup
 let HTML_CONTENT = "";
@@ -85,25 +84,13 @@ app.get("/api/health", (req, res) => {
       configured: true,
       path: dbPath,
     },
-    authConfigured: Boolean(supabaseUrl && supabaseAnonKey),
-  });
-});
-
-app.get("/api/app-config", (req, res) => {
-  res.json({
-    supabaseUrl: supabaseUrl || null,
-    supabaseAnonKey: supabaseAnonKey || null,
-    authConfigured: Boolean(supabaseUrl && supabaseAnonKey),
   });
 });
 
 app.get("/api/conversations", async (req, res) => {
   try {
-    const user = await requireAuthenticatedUser(req, res);
-    if (!user) return;
-
     await ensureInitialized();
-    res.json({ conversations: await listConversations(user.id) });
+    res.json({ conversations: await listConversations(DEFAULT_USER_ID) });
   } catch (error) {
     console.error("Failed to list conversations:", error);
     res.status(500).json({ error: "Failed to load conversations" });
@@ -112,11 +99,8 @@ app.get("/api/conversations", async (req, res) => {
 
 app.get("/api/conversations/:id", async (req, res) => {
   try {
-    const user = await requireAuthenticatedUser(req, res);
-    if (!user) return;
-
     await ensureInitialized();
-    const conversation = await getConversation(req.params.id, user.id);
+    const conversation = await getConversation(req.params.id, DEFAULT_USER_ID);
 
     if (!conversation) {
       return res.status(404).json({ error: "Conversation not found" });
@@ -131,16 +115,13 @@ app.get("/api/conversations/:id", async (req, res) => {
 
 app.post("/api/conversations", async (req, res) => {
   try {
-    const user = await requireAuthenticatedUser(req, res);
-    if (!user) return;
-
     const { conversation } = req.body || {};
     if (!conversation || !conversation.id) {
       return res.status(400).json({ error: "A conversation with an id is required" });
     }
 
     await ensureInitialized();
-    const savedConversation = await upsertConversation({ ...conversation, userId: user.id });
+    const savedConversation = await upsertConversation({ ...conversation, userId: DEFAULT_USER_ID });
     return res.json({ conversation: savedConversation });
   } catch (error) {
     console.error("Failed to save conversation:", error);
@@ -150,9 +131,6 @@ app.post("/api/conversations", async (req, res) => {
 
 app.post("/api/conversations/bulk-sync", async (req, res) => {
   try {
-    const user = await requireAuthenticatedUser(req, res);
-    if (!user) return;
-
     const { conversations } = req.body || {};
     if (!Array.isArray(conversations)) {
       return res.status(400).json({ error: "conversations must be an array" });
@@ -160,7 +138,7 @@ app.post("/api/conversations/bulk-sync", async (req, res) => {
 
     await ensureInitialized();
     const savedConversations = await bulkUpsertConversations(
-      conversations.map((conversation) => ({ ...conversation, userId: user.id })),
+      conversations.map((conversation) => ({ ...conversation, userId: DEFAULT_USER_ID })),
     );
     return res.json({ conversations: savedConversations });
   } catch (error) {
@@ -171,11 +149,8 @@ app.post("/api/conversations/bulk-sync", async (req, res) => {
 
 app.delete("/api/conversations/:id", async (req, res) => {
   try {
-    const user = await requireAuthenticatedUser(req, res);
-    if (!user) return;
-
     await ensureInitialized();
-    const deleted = await deleteConversation(req.params.id, user.id);
+    const deleted = await deleteConversation(req.params.id, DEFAULT_USER_ID);
     return res.json({ deleted });
   } catch (error) {
     console.error("Failed to delete conversation:", error);
@@ -295,41 +270,6 @@ async function callHuggingFace(conversation, token) {
 
   const data = await response.json();
   return cleanGeneratedText(data.choices?.[0]?.message?.content || "");
-}
-
-async function requireAuthenticatedUser(req, res) {
-  if (!supabaseUrl || !supabaseAnonKey) {
-    res.status(503).json({ error: "Authentication is not configured yet." });
-    return null;
-  }
-
-  const authHeader = req.headers.authorization || "";
-  const match = authHeader.match(/^Bearer\s+(.+)$/i);
-
-  if (!match) {
-    res.status(401).json({ error: "Authentication required" });
-    return null;
-  }
-
-  try {
-    const response = await fetch(`${supabaseUrl}/auth/v1/user`, {
-      headers: {
-        Authorization: `Bearer ${match[1]}`,
-        apikey: supabaseAnonKey,
-      },
-    });
-
-    if (!response.ok) {
-      res.status(401).json({ error: "Invalid or expired session" });
-      return null;
-    }
-
-    return await response.json();
-  } catch (error) {
-    console.error("Failed to validate auth token:", error);
-    res.status(500).json({ error: "Authentication check failed" });
-    return null;
-  }
 }
 
 function cleanGeneratedText(text) {

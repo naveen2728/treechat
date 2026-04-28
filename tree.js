@@ -1,15 +1,3 @@
-const authShellEl = document.getElementById("authShell");
-const appShellEl = document.getElementById("appShell");
-const authFormEl = document.getElementById("authForm");
-const authEmailEl = document.getElementById("authEmail");
-const authPasswordEl = document.getElementById("authPassword");
-const authStatusEl = document.getElementById("authStatus");
-const authSubmitBtn = document.getElementById("authSubmitBtn");
-const signInModeBtn = document.getElementById("signInModeBtn");
-const signUpModeBtn = document.getElementById("signUpModeBtn");
-const logoutBtn = document.getElementById("logoutBtn");
-const userPillEl = document.getElementById("userPill");
-
 const messagesEl = document.getElementById("messages");
 const formEl = document.getElementById("chatForm");
 const inputEl = document.getElementById("messageInput");
@@ -20,17 +8,12 @@ const conversationListEl = document.getElementById("conversationList");
 const exportBtn = document.getElementById("exportBtn");
 const settingsBtn = document.getElementById("settingsBtn");
 
-const STORE_PREFIX = "treechat-conversations:v2";
-const ACTIVE_PREFIX = "treechat-active-conversation:v2";
+const STORE_KEY = "treechat-conversations:v1";
+const ACTIVE_KEY = "treechat-active-conversation:v1";
 const LEGACY_TREE_KEY = "treechat-tree:v3";
 
-let authMode = "signin";
-let supabaseClient = null;
-let appConfig = null;
-let authSession = null;
-let currentUser = null;
-let conversations = [];
-let activeConversationId = null;
+let conversations = loadLocalConversations();
+let activeConversationId = loadActiveConversationId();
 let latestAiWarning = "";
 let activeBranchParentId = null;
 let isGenerating = false;
@@ -51,7 +34,6 @@ function createConversation(title = "New chat", tree = createRoot()) {
   const now = new Date().toISOString();
   return {
     id: `chat-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-    userId: currentUser?.id || "",
     title,
     createdAt: now,
     updatedAt: now,
@@ -69,29 +51,12 @@ function createNode(text, role = "user") {
   };
 }
 
-function getStoreKey() {
-  return `${STORE_PREFIX}:${currentUser?.id || "anonymous"}`;
-}
-
-function getActiveKey() {
-  return `${ACTIVE_PREFIX}:${currentUser?.id || "anonymous"}`;
-}
-
-function normalizeConversation(conversation) {
-  return {
-    ...conversation,
-    userId: currentUser?.id || conversation.userId || "",
-  };
-}
-
 function loadLocalConversations() {
   try {
-    const saved = localStorage.getItem(getStoreKey());
+    const saved = localStorage.getItem(STORE_KEY);
     if (saved) {
       const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed.map(normalizeConversation);
-      }
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
     }
 
     const legacy = localStorage.getItem(LEGACY_TREE_KEY);
@@ -108,7 +73,7 @@ function loadLocalConversations() {
 
 function loadActiveConversationId() {
   try {
-    const savedId = localStorage.getItem(getActiveKey());
+    const savedId = localStorage.getItem(ACTIVE_KEY);
     if (savedId && conversations.some((conversation) => conversation.id === savedId)) return savedId;
   } catch (error) {
     console.warn("Failed to load active conversation:", error);
@@ -127,9 +92,9 @@ function getTree() {
 
 function saveLocalState() {
   try {
-    localStorage.setItem(getStoreKey(), JSON.stringify(conversations));
+    localStorage.setItem(STORE_KEY, JSON.stringify(conversations));
     if (activeConversationId) {
-      localStorage.setItem(getActiveKey(), activeConversationId);
+      localStorage.setItem(ACTIVE_KEY, activeConversationId);
     }
   } catch (error) {
     console.warn("Failed to save conversations:", error);
@@ -138,11 +103,9 @@ function saveLocalState() {
 
 function saveConversations() {
   saveLocalState();
-  if (databaseStatus === "ready") {
-    const conversation = getActiveConversation();
-    if (conversation) {
-      void saveConversationToDatabase(conversation);
-    }
+  const conversation = getActiveConversation();
+  if (conversation) {
+    void saveConversationToDatabase(conversation);
   }
 }
 
@@ -150,7 +113,6 @@ function touchConversation(conversation = getActiveConversation()) {
   if (!conversation) return;
   conversation.updatedAt = new Date().toISOString();
   conversation.title = getConversationTitle(conversation.tree);
-  conversation.userId = currentUser?.id || conversation.userId || "";
 }
 
 function getConversationTitle(tree) {
@@ -221,18 +183,9 @@ function scrollToBottom() {
 }
 
 function renderApp(animatedNodeId = null) {
-  renderAuthState();
-  if (!currentUser) return;
   renderSidebar();
   renderTree(animatedNodeId);
   updateInputState();
-}
-
-function renderAuthState() {
-  const showApp = Boolean(currentUser);
-  authShellEl.classList.toggle("is-hidden", showApp);
-  appShellEl.classList.toggle("is-hidden", !showApp);
-  userPillEl.textContent = currentUser?.email || "";
 }
 
 function renderSidebar() {
@@ -282,11 +235,9 @@ function renderEmptyState() {
   titleEl.textContent = "What are we branching today?";
 
   const textEl = document.createElement("span");
-  if (isHydrating) {
-    textEl.textContent = "Loading your saved conversations...";
-  } else {
-    textEl.textContent = "Start with a normal message. Use Branch on any reply when you want a side path.";
-  }
+  textEl.textContent = isHydrating
+    ? "Loading saved conversations..."
+    : "Start with a normal message. Use Branch on any reply when you want a side path.";
 
   emptyEl.appendChild(titleEl);
   emptyEl.appendChild(textEl);
@@ -700,8 +651,8 @@ function startNewChat() {
 }
 
 function updateInputState() {
-  inputEl.disabled = isGenerating || !currentUser;
-  sendBtn.disabled = isGenerating || inputEl.value.trim().length === 0 || !currentUser;
+  inputEl.disabled = isGenerating;
+  sendBtn.disabled = isGenerating || inputEl.value.trim().length === 0;
   sendBtn.textContent = isGenerating ? "..." : "Send";
 }
 
@@ -716,17 +667,16 @@ function mergeConversations(localItems, remoteItems) {
   [...remoteItems, ...localItems].forEach((conversation) => {
     if (!conversation || !conversation.id) return;
 
-    const normalized = normalizeConversation(conversation);
-    const existing = merged.get(normalized.id);
+    const existing = merged.get(conversation.id);
     if (!existing) {
-      merged.set(normalized.id, normalized);
+      merged.set(conversation.id, conversation);
       return;
     }
 
     const existingTime = new Date(existing.updatedAt || 0).getTime();
-    const incomingTime = new Date(normalized.updatedAt || 0).getTime();
+    const incomingTime = new Date(conversation.updatedAt || 0).getTime();
     if (incomingTime >= existingTime) {
-      merged.set(normalized.id, normalized);
+      merged.set(conversation.id, conversation);
     }
   });
 
@@ -735,22 +685,8 @@ function mergeConversations(localItems, remoteItems) {
   );
 }
 
-async function fetchWithAuth(url, options = {}) {
-  if (!authSession?.access_token) {
-    throw new Error("No active session");
-  }
-
-  const headers = new Headers(options.headers || {});
-  headers.set("Authorization", `Bearer ${authSession.access_token}`);
-  if (options.body && !headers.has("Content-Type")) {
-    headers.set("Content-Type", "application/json");
-  }
-
-  return fetch(url, { ...options, headers });
-}
-
 async function loadConversationsFromDatabase() {
-  const response = await fetchWithAuth("/api/conversations");
+  const response = await fetch("/api/conversations");
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
   const data = await response.json();
@@ -759,9 +695,10 @@ async function loadConversationsFromDatabase() {
 
 async function saveConversationToDatabase(conversation) {
   try {
-    const response = await fetchWithAuth("/api/conversations", {
+    const response = await fetch("/api/conversations", {
       method: "POST",
-      body: JSON.stringify({ conversation: normalizeConversation(conversation) }),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ conversation }),
     });
 
     if (!response.ok) {
@@ -776,11 +713,10 @@ async function saveConversationToDatabase(conversation) {
 }
 
 async function syncConversationsToDatabase(items) {
-  const response = await fetchWithAuth("/api/conversations/bulk-sync", {
+  const response = await fetch("/api/conversations/bulk-sync", {
     method: "POST",
-    body: JSON.stringify({
-      conversations: items.map((conversation) => normalizeConversation(conversation)),
-    }),
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ conversations: items }),
   });
 
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -790,10 +726,6 @@ async function syncConversationsToDatabase(items) {
 }
 
 async function hydrateConversations() {
-  if (!currentUser) return;
-
-  conversations = loadLocalConversations();
-  activeConversationId = loadActiveConversationId();
   isHydrating = true;
   renderApp();
 
@@ -817,7 +749,7 @@ async function hydrateConversations() {
 
     const syncedConversations = await syncConversationsToDatabase(conversations);
     if (syncedConversations.length > 0) {
-      conversations = syncedConversations.map(normalizeConversation);
+      conversations = syncedConversations;
       if (!conversations.some((conversation) => conversation.id === activeConversationId)) {
         activeConversationId = conversations[0].id;
       }
@@ -839,112 +771,10 @@ async function hydrateConversations() {
   }
 }
 
-function setAuthMode(mode) {
-  authMode = mode;
-  signInModeBtn.classList.toggle("is-active", mode === "signin");
-  signUpModeBtn.classList.toggle("is-active", mode === "signup");
-  authSubmitBtn.textContent = mode === "signin" ? "Sign in" : "Create account";
-  authStatusEl.textContent = "";
-}
-
-function setAuthStatus(message, isError = false) {
-  authStatusEl.textContent = message;
-  authStatusEl.style.color = isError ? "#f2a7a4" : "";
-}
-
-async function handleAuthSubmit(event) {
-  event.preventDefault();
-  if (!supabaseClient) {
-    setAuthStatus("Supabase Auth is not configured yet.", true);
-    return;
-  }
-
-  authSubmitBtn.disabled = true;
-  const email = authEmailEl.value.trim();
-  const password = authPasswordEl.value.trim();
-
-  try {
-    if (authMode === "signup") {
-      const { data, error } = await supabaseClient.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: window.location.origin,
-        },
-      });
-
-      if (error) throw error;
-
-      if (!data.session) {
-        setAuthStatus("Account created. Check your email to confirm your account before signing in.");
-      } else {
-        setAuthStatus("Account created. You are signed in.");
-      }
-    } else {
-      const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
-      if (error) throw error;
-      setAuthStatus("Signed in.");
-    }
-  } catch (error) {
-    setAuthStatus(error.message || "Authentication failed.", true);
-  } finally {
-    authSubmitBtn.disabled = false;
-  }
-}
-
-async function handleSignOut() {
-  if (!supabaseClient) return;
-
-  const { error } = await supabaseClient.auth.signOut();
-  if (error) {
-    window.alert(error.message || "Failed to sign out.");
-  }
-}
-
-async function bootstrapAuth() {
-  const response = await fetch("/api/app-config");
-  appConfig = await response.json();
-
-  if (!appConfig.authConfigured) {
-    setAuthStatus("Supabase auth is not configured yet. Add SUPABASE_URL and SUPABASE_ANON_KEY on the server.", true);
-    renderAuthState();
-    return;
-  }
-
-  supabaseClient = window.supabase.createClient(appConfig.supabaseUrl, appConfig.supabaseAnonKey);
-
-  const {
-    data: { session },
-  } = await supabaseClient.auth.getSession();
-  authSession = session;
-  currentUser = session?.user || null;
-
-  supabaseClient.auth.onAuthStateChange((_event, sessionValue) => {
-    authSession = sessionValue;
-    currentUser = sessionValue?.user || null;
-    latestAiWarning = "";
-    activeBranchParentId = null;
-
-    if (!currentUser) {
-      conversations = [];
-      activeConversationId = null;
-      renderApp();
-      return;
-    }
-
-    void hydrateConversations();
-  });
-
-  renderApp();
-  if (currentUser) {
-    await hydrateConversations();
-  }
-}
-
 formEl.addEventListener("submit", (event) => {
   event.preventDefault();
   const message = inputEl.value.trim();
-  if (!message || isGenerating || !currentUser) return;
+  if (!message || isGenerating) return;
 
   inputEl.value = "";
   autoResizeTextarea(inputEl);
@@ -964,10 +794,6 @@ inputEl.addEventListener("input", () => {
   updateInputState();
 });
 
-authFormEl.addEventListener("submit", handleAuthSubmit);
-signInModeBtn.addEventListener("click", () => setAuthMode("signin"));
-signUpModeBtn.addEventListener("click", () => setAuthMode("signup"));
-logoutBtn.addEventListener("click", () => void handleSignOut());
 newChatBtn.addEventListener("click", startNewChat);
 sidebarNewChatBtn.addEventListener("click", startNewChat);
 exportBtn.addEventListener("click", exportTree);
@@ -975,12 +801,11 @@ exportBtn.addEventListener("click", exportTree);
 settingsBtn.addEventListener("click", () => {
   const details =
     databaseStatus === "ready"
-      ? "Database sync is active for your account."
+      ? "Database sync is active."
       : "Database sync is offline, so this browser is using local storage right now.";
   window.alert(`${details}\n\nSettings panel coming soon!`);
 });
 
-setAuthMode("signin");
 autoResizeTextarea(inputEl);
 renderApp();
-void bootstrapAuth();
+void hydrateConversations();
