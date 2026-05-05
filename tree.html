@@ -38,6 +38,10 @@
               <span>Send normally. Use Branch only when you want a side path.</span>
             </div>
             <div class="chat-actions">
+              <button class="help-btn" id="tutorialBtn" type="button" aria-label="How TreeChat works">
+                <span class="help-btn-icon">?</span>
+                <span class="help-btn-label">Guide</span>
+              </button>
               <button class="settings-btn" id="settingsBtn" type="button" aria-label="Settings">
                 Settings
               </button>
@@ -67,6 +71,36 @@
           </div>
         </div>
       </main>
+    </div>
+
+    <div class="tutorial-modal is-hidden" id="tutorialModal" aria-hidden="true">
+      <div
+        class="tutorial-dialog"
+        role="dialog"
+        aria-modal="false"
+        aria-labelledby="tutorialTitle"
+        aria-describedby="tutorialBody"
+      >
+        <div class="tutorial-dialog-header">
+          <div>
+            <span class="tutorial-eyebrow">Welcome to TreeChat</span>
+            <h2 id="tutorialTitle">See how branching works</h2>
+          </div>
+          <button class="tutorial-close" id="tutorialCloseBtn" type="button" aria-label="Close tutorial">
+            Close
+          </button>
+        </div>
+
+        <div class="tutorial-slide" id="tutorialSlide"></div>
+
+        <div class="tutorial-dialog-footer">
+          <div class="tutorial-dots" id="tutorialDots" aria-label="Tutorial progress"></div>
+          <div class="tutorial-dialog-actions">
+            <button class="tutorial-secondary-btn" id="tutorialPrevBtn" type="button">Back</button>
+            <button class="tutorial-primary-btn" id="tutorialNextBtn" type="button">Next</button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="toast-layer" id="toastLayer" aria-live="polite"></div>

@@ -9,10 +9,18 @@ const conversationListEl = document.getElementById("conversationList");
 const exportBtn = document.getElementById("exportBtn");
 const settingsBtn = document.getElementById("settingsBtn");
 const toastLayerEl = document.getElementById("toastLayer");
+const tutorialBtn = document.getElementById("tutorialBtn");
+const tutorialModalEl = document.getElementById("tutorialModal");
+const tutorialSlideEl = document.getElementById("tutorialSlide");
+const tutorialDotsEl = document.getElementById("tutorialDots");
+const tutorialPrevBtn = document.getElementById("tutorialPrevBtn");
+const tutorialNextBtn = document.getElementById("tutorialNextBtn");
+const tutorialCloseBtn = document.getElementById("tutorialCloseBtn");
 
 const STORE_KEY = "treechat-conversations:v1";
 const ACTIVE_KEY = "treechat-active-conversation:v1";
 const LEGACY_TREE_KEY = "treechat-tree:v3";
+const TUTORIAL_SEEN_KEY = "treechat-tutorial-seen:v1";
 
 let conversations = loadLocalConversations();
 let activeConversationId = loadActiveConversationId();
@@ -23,6 +31,40 @@ let isHydrating = false;
 let databaseStatus = "syncing";
 let conversationSearchTerm = "";
 let pendingDeleteToast = null;
+let tutorialIndex = 0;
+
+const tutorialSlides = [
+  {
+    title: "Start simple",
+    body: "Chat normally first. Only branch when a reply deserves its own path.",
+    points: [
+      "Main flow stays clean",
+      "Branch from AI replies",
+      "Context stays attached",
+    ],
+    art: "branching",
+  },
+  {
+    title: "Explore alternatives",
+    body: "Use branches to compare directions without losing the answer you already liked.",
+    points: [
+      "Compare prompt ideas",
+      "Collapse when needed",
+      "Pin strong chats",
+    ],
+    art: "compare",
+  },
+  {
+    title: "Keep momentum",
+    body: "Copy code, ask follow-ups, and spin off a branch when one answer needs deeper work.",
+    points: [
+      "Copy code instantly",
+      "Guide stays here anytime",
+      "Made for thinking in threads",
+    ],
+    art: "code",
+  },
+];
 
 function createRoot() {
   return {
@@ -367,42 +409,28 @@ function renderNode(node, container, isChild, animatedNodeId) {
   toggleBtn.disabled = isGenerating;
   toggleBtn.addEventListener("click", () => toggleNode(node.id));
 
-  const branchBtn = document.createElement("button");
-  branchBtn.type = "button";
-  branchBtn.className = "branch-btn";
-  branchBtn.textContent = activeBranchParentId === node.id ? "Branching" : "Branch";
-  branchBtn.title = "Create a side branch from this message";
-  branchBtn.setAttribute("aria-label", branchBtn.title);
-  branchBtn.disabled = isGenerating;
-  branchBtn.addEventListener("click", () => openBranchComposer(node.id));
-
-  const editBtn = document.createElement("button");
-  editBtn.type = "button";
-  editBtn.className = "edit-btn";
-  editBtn.textContent = "Edit";
-  editBtn.title = "Edit this message";
-  editBtn.setAttribute("aria-label", editBtn.title);
-  editBtn.disabled = isGenerating;
-  editBtn.addEventListener("click", () => editNode(node.id));
-
-  const deleteBtn = document.createElement("button");
-  deleteBtn.type = "button";
-  deleteBtn.className = "delete-btn";
-  deleteBtn.textContent = "Delete";
-  deleteBtn.title = "Delete this message or branch";
-  deleteBtn.setAttribute("aria-label", deleteBtn.title);
-  deleteBtn.disabled = isGenerating;
-  deleteBtn.addEventListener("click", () => deleteNode(node.id));
-
   const actionsEl = document.createElement("div");
   actionsEl.className = "message-actions";
-  actionsEl.appendChild(toggleBtn);
-  actionsEl.appendChild(branchBtn);
-  actionsEl.appendChild(editBtn);
-  actionsEl.appendChild(deleteBtn);
+  if (node.children.length > 0) {
+    actionsEl.appendChild(toggleBtn);
+  }
+
+  if (node.role === "assistant") {
+    const branchBtn = document.createElement("button");
+    branchBtn.type = "button";
+    branchBtn.className = "branch-btn";
+    branchBtn.textContent = activeBranchParentId === node.id ? "Branching" : "Branch";
+    branchBtn.title = "Create a side branch from this reply";
+    branchBtn.setAttribute("aria-label", branchBtn.title);
+    branchBtn.disabled = isGenerating;
+    branchBtn.addEventListener("click", () => openBranchComposer(node.id));
+    actionsEl.appendChild(branchBtn);
+  }
 
   rowEl.appendChild(bubbleEl);
-  rowEl.appendChild(actionsEl);
+  if (actionsEl.childElementCount > 0) {
+    rowEl.appendChild(actionsEl);
+  }
   nodeEl.appendChild(rowEl);
 
   if (activeBranchParentId === node.id) {
@@ -450,7 +478,7 @@ function createBranchComposer(parentId) {
   const submitBtn = document.createElement("button");
   submitBtn.type = "submit";
   submitBtn.className = "composer-send-btn";
-  submitBtn.textContent = "Send branch";
+  submitBtn.textContent = "Start branch";
 
   controls.appendChild(cancelBtn);
   controls.appendChild(submitBtn);
@@ -491,12 +519,29 @@ function renderMessageText(container, text) {
     if (!trimmed) return;
 
     if (trimmed.startsWith("```") && trimmed.endsWith("```")) {
+      const codeWrap = document.createElement("div");
+      codeWrap.className = "message-code-wrap";
+
       const codeEl = document.createElement("pre");
       codeEl.className = "message-code";
       const codeInner = document.createElement("code");
-      codeInner.textContent = trimmed.replace(/^```[a-zA-Z0-9_-]*\n?/, "").replace(/```$/, "").trim();
+      const codeText = trimmed.replace(/^```[a-zA-Z0-9_-]*\n?/, "").replace(/```$/, "").trim();
+      codeInner.textContent = codeText;
       codeEl.appendChild(codeInner);
-      fragment.appendChild(codeEl);
+
+      const copyBtn = document.createElement("button");
+      copyBtn.type = "button";
+      copyBtn.className = "code-copy-btn";
+      copyBtn.textContent = "Copy";
+      copyBtn.title = "Copy code";
+      copyBtn.setAttribute("aria-label", copyBtn.title);
+      copyBtn.addEventListener("click", () => {
+        void copyText(codeText, "Code copied.");
+      });
+
+      codeWrap.appendChild(codeEl);
+      codeWrap.appendChild(copyBtn);
+      fragment.appendChild(codeWrap);
       return;
     }
 
@@ -650,11 +695,15 @@ async function callAi(message, history = []) {
 
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort(), 20000);
       const response = await fetch("/api/ai", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
         body: JSON.stringify({ message, history }),
       });
+      window.clearTimeout(timeoutId);
 
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
@@ -669,7 +718,8 @@ async function callAi(message, history = []) {
         throw new Error(data?.error || `HTTP ${response.status}`);
       }
 
-      latestAiWarning = data.warning || (data.source === "mock" ? "AI is using fallback replies right now." : "");
+      latestAiWarning =
+        data.warning || (data.source === "mock" ? "AI is unavailable right now, so a fallback reply was used." : "");
       return data.generated_text || getMockResponse();
     } catch (error) {
       lastError = error;
@@ -682,7 +732,10 @@ async function callAi(message, history = []) {
       }
 
       if (attempt < 2) {
-        latestAiWarning = "AI request failed, retrying...";
+        latestAiWarning =
+          error?.name === "AbortError"
+            ? "AI took too long to respond, retrying..."
+            : "AI request failed, retrying...";
         renderApp();
         await delay(500 * 2 ** attempt);
       }
@@ -708,53 +761,6 @@ function getMockResponse() {
 function openBranchComposer(nodeId) {
   activeBranchParentId = activeBranchParentId === nodeId ? null : nodeId;
   renderApp();
-}
-
-function editNode(nodeId) {
-  if (isGenerating) return;
-
-  const tree = getTree();
-  const node = findNode(tree, nodeId);
-  if (!node) return;
-
-  const nextText = window.prompt("Edit message:", node.text);
-  if (nextText === null) return;
-
-  const trimmed = nextText.trim();
-  if (!trimmed) return;
-
-  node.text = trimmed;
-  touchConversation();
-  saveConversations();
-  renderApp();
-  flashNode(nodeId);
-}
-
-function deleteNode(nodeId) {
-  if (isGenerating) return;
-
-  const tree = getTree();
-  const parent = findParent(tree, nodeId);
-  if (!parent) return;
-
-  const index = parent.children.findIndex((child) => child.id === nodeId);
-  if (index === -1) return;
-
-  const [deletedNode] = parent.children.splice(index, 1);
-  if (activeBranchParentId === nodeId) activeBranchParentId = null;
-  touchConversation();
-  saveConversations();
-  renderApp();
-  showUndoToast({
-    label: deletedNode.children.length > 0 ? "Branch deleted." : "Message deleted.",
-    undo: () => {
-      parent.children.splice(index, 0, deletedNode);
-      touchConversation();
-      saveConversations();
-      renderApp(deletedNode.id);
-      flashNode(deletedNode.id);
-    },
-  });
 }
 
 function exportTree() {
@@ -979,7 +985,30 @@ function flashNode(nodeId) {
   }, 40);
 }
 
-function showUndoToast({ label, undo }) {
+async function copyText(text, successLabel) {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+    } else {
+      const helper = document.createElement("textarea");
+      helper.value = text;
+      helper.setAttribute("readonly", "");
+      helper.style.position = "absolute";
+      helper.style.left = "-9999px";
+      document.body.appendChild(helper);
+      helper.select();
+      document.execCommand("copy");
+      helper.remove();
+    }
+
+    showToast({ label: successLabel });
+  } catch (error) {
+    console.warn("Failed to copy text:", error);
+    showToast({ label: "Copy failed. Try again." });
+  }
+}
+
+function showToast({ label, actionLabel, action, duration = 5000 }) {
   if (pendingDeleteToast?.cleanup) {
     pendingDeleteToast.cleanup();
   }
@@ -992,33 +1021,183 @@ function showUndoToast({ label, undo }) {
   const copy = document.createElement("div");
   copy.className = "toast-copy";
   copy.textContent = label;
+  toast.appendChild(copy);
 
-  const action = document.createElement("button");
-  action.type = "button";
-  action.className = "toast-action";
-  action.textContent = "Undo";
-
+  let timer = null;
   const cleanup = () => {
-    window.clearTimeout(timer);
+    if (timer) {
+      window.clearTimeout(timer);
+    }
+
     if (toast.parentNode) toast.remove();
     pendingDeleteToast = null;
   };
 
-  action.addEventListener("click", () => {
-    cleanup();
-    undo();
-  });
+  if (actionLabel && typeof action === "function") {
+    const actionBtn = document.createElement("button");
+    actionBtn.type = "button";
+    actionBtn.className = "toast-action";
+    actionBtn.textContent = actionLabel;
+    actionBtn.addEventListener("click", () => {
+      cleanup();
+      action();
+    });
+    toast.appendChild(actionBtn);
+  }
 
-  toast.appendChild(copy);
-  toast.appendChild(action);
   toastLayerEl.appendChild(toast);
-
-  const timer = window.setTimeout(cleanup, 5000);
+  timer = window.setTimeout(cleanup, duration);
   pendingDeleteToast = { cleanup };
+}
+
+function showUndoToast({ label, undo }) {
+  showToast({ label, actionLabel: "Undo", action: undo, duration: 5000 });
 }
 
 function delay(ms) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+function shouldAutoOpenTutorial() {
+  try {
+    return localStorage.getItem(TUTORIAL_SEEN_KEY) !== "true";
+  } catch (error) {
+    console.warn("Failed to read tutorial state:", error);
+    return true;
+  }
+}
+
+function setTutorialSeen() {
+  try {
+    localStorage.setItem(TUTORIAL_SEEN_KEY, "true");
+  } catch (error) {
+    console.warn("Failed to save tutorial state:", error);
+  }
+}
+
+function renderTutorialArt(art) {
+  if (art === "branching") {
+    return `
+      <div class="tutorial-artboard">
+        <div class="tutorial-mini-toolbar">
+          <span class="tutorial-mini-dot"></span>
+          <span class="tutorial-mini-dot"></span>
+          <span class="tutorial-mini-dot"></span>
+        </div>
+        <div class="tutorial-thread">
+          <div class="tutorial-node assistant">
+            <span class="tutorial-node-label">Main reply</span>
+            <div class="tutorial-node-copy">Here is the core answer to your question.</div>
+          </div>
+          <div class="tutorial-node user">
+            <span class="tutorial-node-label">Follow-up</span>
+            <div class="tutorial-node-copy">What if we explore a simpler approach?</div>
+          </div>
+          <div class="tutorial-node branch">
+            <span class="tutorial-node-label">Branch</span>
+            <div class="tutorial-node-copy">Keep a side path without interrupting the main thread.</div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  if (art === "compare") {
+    return `
+      <div class="tutorial-artboard">
+        <div class="tutorial-mini-toolbar">
+          <span class="tutorial-mini-dot"></span>
+          <span class="tutorial-mini-dot"></span>
+          <span class="tutorial-mini-dot"></span>
+        </div>
+        <div class="tutorial-thread">
+          <div class="tutorial-node assistant">
+            <span class="tutorial-node-label">Original answer</span>
+            <div class="tutorial-node-copy">A structured response stays in the main path.</div>
+          </div>
+          <div class="tutorial-node branch">
+            <span class="tutorial-node-label">Alternative branch</span>
+            <div class="tutorial-node-copy">Test a faster version, a creative version, or a code-heavy version.</div>
+          </div>
+          <div class="tutorial-node branch">
+            <span class="tutorial-node-label">Another branch</span>
+            <div class="tutorial-node-copy">Compare directions instead of rewriting the same answer over and over.</div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="tutorial-artboard">
+      <div class="tutorial-mini-toolbar">
+        <span class="tutorial-mini-dot"></span>
+        <span class="tutorial-mini-dot"></span>
+        <span class="tutorial-mini-dot"></span>
+      </div>
+      <div class="tutorial-code-card">
+        <div class="tutorial-code-header">
+          <span class="tutorial-node-label">Code reply</span>
+          <span class="tutorial-code-pill">Copy</span>
+        </div>
+        <div class="tutorial-code-line w-92"></div>
+        <div class="tutorial-code-line w-80"></div>
+        <div class="tutorial-code-line w-66"></div>
+        <div class="tutorial-code-line w-48"></div>
+      </div>
+      <div class="tutorial-thread">
+        <div class="tutorial-node branch">
+          <span class="tutorial-node-label">Next step</span>
+          <div class="tutorial-node-copy">Branch from the code reply to ask for a cleaner version, tests, or explanation.</div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderTutorial() {
+  if (!tutorialSlideEl || !tutorialDotsEl) return;
+
+  const slide = tutorialSlides[tutorialIndex];
+  tutorialSlideEl.innerHTML = `
+    <div class="tutorial-copy" id="tutorialBody">
+      <h3>${slide.title}</h3>
+      <p>${slide.body}</p>
+      <div class="tutorial-points">
+        ${slide.points
+          .map(
+            (point, index) => `
+              <div class="tutorial-point">
+                <span class="tutorial-point-mark">${index + 1}</span>
+                <div class="tutorial-point-copy">${point}</div>
+              </div>
+            `,
+          )
+          .join("")}
+      </div>
+    </div>
+    ${renderTutorialArt(slide.art)}
+  `;
+
+  tutorialDotsEl.innerHTML = tutorialSlides
+    .map((_, index) => `<span class="tutorial-dot${index === tutorialIndex ? " is-active" : ""}"></span>`)
+    .join("");
+
+  tutorialPrevBtn.disabled = tutorialIndex === 0;
+  tutorialNextBtn.textContent = tutorialIndex === tutorialSlides.length - 1 ? "Done" : "Next";
+}
+
+function openTutorial() {
+  if (!tutorialModalEl) return;
+  renderTutorial();
+  tutorialModalEl.classList.remove("is-hidden");
+  tutorialModalEl.setAttribute("aria-hidden", "false");
+  setTutorialSeen();
+}
+
+function closeTutorial() {
+  tutorialModalEl.classList.add("is-hidden");
+  tutorialModalEl.setAttribute("aria-hidden", "true");
 }
 
 formEl.addEventListener("submit", (event) => {
@@ -1058,6 +1237,45 @@ settingsBtn.addEventListener("click", () => {
       ? "Database sync is active."
       : "Database sync is offline, so this browser is using local storage right now.";
   window.alert(`${details}\n\nSettings panel coming soon!`);
+});
+
+tutorialCloseBtn?.addEventListener("click", closeTutorial);
+tutorialPrevBtn?.addEventListener("click", () => {
+  tutorialIndex = Math.max(0, tutorialIndex - 1);
+  renderTutorial();
+});
+tutorialNextBtn?.addEventListener("click", () => {
+  if (tutorialIndex >= tutorialSlides.length - 1) {
+    closeTutorial();
+    return;
+  }
+
+  tutorialIndex += 1;
+  renderTutorial();
+});
+tutorialBtn?.addEventListener("click", (event) => {
+  event.stopPropagation();
+  if (tutorialModalEl && !tutorialModalEl.classList.contains("is-hidden")) {
+    closeTutorial();
+    return;
+  }
+  tutorialIndex = 0;
+  openTutorial();
+});
+tutorialModalEl?.addEventListener("click", (event) => {
+  event.stopPropagation();
+});
+window.addEventListener("click", (event) => {
+  if (!tutorialModalEl || tutorialModalEl.classList.contains("is-hidden")) return;
+  const target = event.target;
+  if (target instanceof Node && !tutorialModalEl.contains(target) && target !== tutorialBtn) {
+    closeTutorial();
+  }
+});
+window.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && tutorialModalEl && !tutorialModalEl.classList.contains("is-hidden")) {
+    closeTutorial();
+  }
 });
 
 autoResizeTextarea(inputEl);

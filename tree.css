@@ -1,16 +1,18 @@
 :root {
   --app-bg: #101111;
-  --sidebar-bg: #151716;
-  --surface: #1d201e;
-  --surface-2: #252926;
-  --surface-3: #2d332f;
+  --sidebar-bg: #141715;
+  --surface: #1b1f1c;
+  --surface-2: #202622;
+  --surface-3: #29322b;
   --text: #f3f5f2;
   --muted: #afb5ae;
   --quiet: #7f8780;
   --border: rgba(255, 255, 255, 0.1);
   --border-strong: rgba(255, 255, 255, 0.16);
-  --accent: #24a883;
-  --accent-strong: #34bf98;
+  --accent: #2cb38c;
+  --accent-strong: #4ad0aa;
+  --accent-soft: rgba(44, 179, 140, 0.14);
+  --surface-code: #0f1311;
   --danger: #ef6f6c;
   --warning: #e6c15a;
   --shadow: 0 22px 70px rgba(0, 0, 0, 0.36);
@@ -227,12 +229,12 @@ button {
 .delete-btn,
 .btn {
   border: 1px solid var(--border);
-  background: transparent;
+  background: rgba(255, 255, 255, 0.02);
   color: var(--muted);
   cursor: pointer;
   user-select: none;
-  transition: background 140ms ease, border-color 140ms ease, color 140ms ease,
-    transform 80ms ease;
+  transition: background 180ms ease, border-color 180ms ease, color 180ms ease,
+    transform 120ms ease, box-shadow 180ms ease;
 }
 
 .sidebar-newchat {
@@ -425,6 +427,7 @@ button {
   padding: 12px 22px;
   border-bottom: 1px solid var(--border);
   background: rgba(16, 17, 17, 0.96);
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.02);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -458,11 +461,46 @@ button {
 .newchat-btn,
 .settings-btn,
 .export-btn,
+.help-btn,
 .logout-btn {
   padding: 8px 10px;
   font-size: 13px;
   font-weight: 600;
   white-space: nowrap;
+}
+
+.help-btn {
+  min-width: 0;
+  min-height: 36px;
+  padding: 0 12px 0 8px;
+  border-radius: 999px;
+  font-size: 13px;
+  line-height: 1;
+  color: var(--muted);
+  background: rgba(17, 21, 19, 0.96);
+  border-color: rgba(255, 255, 255, 0.08);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+}
+
+.help-btn-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: rgba(44, 179, 140, 0.14);
+  color: #dbfff3;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.help-btn-label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
 }
 
 .chat-messages {
@@ -532,14 +570,15 @@ button {
   grid-column: 2;
   width: fit-content;
   max-width: min(720px, 100%);
-  padding: 10px 14px;
+  padding: 12px 15px;
   border: 1px solid transparent;
   border-radius: 8px;
   font-size: 16px;
-  line-height: 1.7;
+  line-height: 1.65;
   word-wrap: break-word;
   white-space: pre-wrap;
-  transition: background 140ms ease, border-color 140ms ease, transform 120ms ease;
+  transition: background 180ms ease, border-color 180ms ease, transform 120ms ease,
+    box-shadow 180ms ease;
 }
 
 .message-paragraph {
@@ -574,14 +613,36 @@ button {
   margin-top: 6px;
 }
 
+.message-code-wrap {
+  position: relative;
+  margin: 0;
+}
+
 .message-code {
   margin: 0;
-  padding: 12px;
+  padding: 16px 14px 14px;
   overflow-x: auto;
   border-radius: 8px;
-  background: #0d0d0d;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 22%), var(--surface-code);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   line-height: 1.5;
+}
+
+.code-copy-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  background: rgba(9, 11, 10, 0.82);
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  backdrop-filter: blur(12px);
 }
 
 .message-code code,
@@ -598,9 +659,11 @@ button {
 
 .bubble.user {
   justify-self: end;
-  color: #f7fffc;
-  background: #2f2f2f;
+  color: #f8fffd;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02)),
+    #2a2f2b;
   border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.18);
 }
 
 .bubble.assistant {
@@ -652,10 +715,12 @@ button {
 .toggle-btn,
 .edit-btn,
 .delete-btn {
-  padding: 5px 8px;
+  min-height: 30px;
+  padding: 0 10px;
   font-size: 12px;
-  font-weight: 600;
-  background: rgba(255, 255, 255, 0.03);
+  font-weight: 550;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 999px;
 }
 
 .delete-btn {
@@ -749,28 +814,35 @@ button {
 
 .branch-composer {
   width: min(760px, calc(100% - 32px));
-  margin: 0 auto 10px;
-  padding: 12px;
+  margin: 4px auto 12px;
+  padding: 14px;
   border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.018));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
 .branch-input {
   width: 100%;
-  min-height: 44px;
+  min-height: 48px;
   max-height: 180px;
   resize: none;
-  padding: 11px 12px;
+  padding: 13px 14px;
   border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: #2c302d;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(18, 21, 19, 0.88);
   color: var(--text);
   outline: none;
   overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.branch-input::-webkit-scrollbar {
+  width: 0;
+  height: 0;
 }
 
 .branch-composer-actions {
@@ -781,25 +853,26 @@ button {
 
 .composer-cancel-btn,
 .composer-send-btn {
-  min-height: 36px;
-  padding: 8px 12px;
+  min-height: 38px;
+  padding: 0 14px;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: transparent;
+  background: rgba(255, 255, 255, 0.03);
   color: var(--muted);
   cursor: pointer;
   font-size: 12px;
+  font-weight: 500;
 }
 
 .composer-send-btn {
-  background: rgba(36, 168, 131, 0.16);
-  color: var(--text);
-  border-color: rgba(36, 168, 131, 0.28);
-  font-weight: 600;
+  background: linear-gradient(180deg, rgba(44, 179, 140, 0.2), rgba(44, 179, 140, 0.12));
+  color: #eafff8;
+  border-color: rgba(44, 179, 140, 0.28);
+  box-shadow: 0 10px 24px rgba(7, 30, 23, 0.18);
 }
 
 .chat-footer {
-  padding: 16px 18px 18px;
+  padding: 18px 18px 20px;
   border-top: 1px solid var(--border);
   background: rgba(16, 17, 17, 0.98);
 }
@@ -809,23 +882,29 @@ button {
   margin: 0 auto;
   display: flex;
   gap: 10px;
-  align-items: center;
+  align-items: flex-end;
 }
 
 .input {
   flex: 1;
   min-width: 0;
-  min-height: 50px;
+  min-height: 54px;
   max-height: 180px;
-  padding: 14px 16px;
+  padding: 15px 16px;
   border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: #2c302d;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(18, 21, 19, 0.9);
   color: var(--text);
   outline: none;
   resize: none;
   overflow-y: auto;
-  transition: border-color 140ms ease, background 140ms ease, box-shadow 140ms ease;
+  scrollbar-width: none;
+  transition: border-color 180ms ease, background 180ms ease, box-shadow 180ms ease;
+}
+
+.input::-webkit-scrollbar {
+  width: 0;
+  height: 0;
 }
 
 .input::placeholder {
@@ -845,14 +924,14 @@ button {
 }
 
 .btn {
-  min-width: 92px;
-  min-height: 50px;
+  min-width: 96px;
+  min-height: 54px;
   padding: 12px 18px;
-  border-color: rgba(36, 168, 131, 0.34);
-  background: linear-gradient(180deg, rgba(49, 184, 145, 0.98), rgba(31, 145, 112, 0.98));
+  border-color: rgba(44, 179, 140, 0.34);
+  background: linear-gradient(180deg, rgba(58, 193, 154, 0.98), rgba(35, 151, 117, 0.98));
   color: #f7fffc;
-  font-weight: 600;
-  box-shadow: 0 10px 24px rgba(12, 79, 61, 0.28);
+  font-weight: 650;
+  box-shadow: 0 16px 32px rgba(7, 52, 40, 0.26);
 }
 
 .btn:disabled,
@@ -913,11 +992,323 @@ button:disabled {
   font-weight: 650;
 }
 
+.tutorial-modal {
+  position: fixed;
+  top: 76px;
+  right: 24px;
+  z-index: 50;
+  width: min(380px, calc(100vw - 32px));
+}
+
+.tutorial-dialog {
+  position: relative;
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(28, 33, 29, 0.98), rgba(18, 20, 18, 0.98));
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.34);
+  overflow: hidden;
+}
+
+.tutorial-dialog-header,
+.tutorial-dialog-footer {
+  padding: 18px 22px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.tutorial-dialog-header {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.tutorial-dialog-header h2 {
+  margin: 4px 0 0;
+  font-size: 18px;
+  line-height: 1.1;
+}
+
+.tutorial-eyebrow {
+  color: var(--accent-strong);
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.tutorial-close,
+.tutorial-secondary-btn,
+.tutorial-primary-btn {
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.tutorial-slide {
+  padding: 16px;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.tutorial-copy {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 10px;
+}
+
+.tutorial-copy h3 {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.3;
+}
+
+.tutorial-copy p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.tutorial-points {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tutorial-point {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.tutorial-point-mark {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: rgba(44, 179, 140, 0.16);
+  color: #dcfff3;
+  font-size: 12px;
+  font-weight: 700;
+  flex: 0 0 auto;
+}
+
+.tutorial-point-copy {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.tutorial-artboard {
+  min-height: 168px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background:
+    radial-gradient(circle at top right, rgba(44, 179, 140, 0.14), transparent 34%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.02)),
+    #121614;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow: hidden;
+}
+
+.tutorial-mini-toolbar {
+  display: flex;
+  gap: 8px;
+}
+
+.tutorial-mini-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.tutorial-thread,
+.tutorial-node,
+.tutorial-code-card,
+.tutorial-code-line {
+  border-radius: 8px;
+}
+
+.tutorial-thread {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-left: 24px;
+}
+
+.tutorial-thread::before {
+  content: "";
+  position: absolute;
+  left: 11px;
+  top: 8px;
+  bottom: 8px;
+  width: 1px;
+  background: linear-gradient(180deg, rgba(44, 179, 140, 0.2), rgba(44, 179, 140, 0.48));
+}
+
+.tutorial-node {
+  position: relative;
+  padding: 11px 12px 11px 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.tutorial-node::before {
+  content: "";
+  position: absolute;
+  left: -16px;
+  top: 22px;
+  width: 16px;
+  height: 1px;
+  background: rgba(44, 179, 140, 0.42);
+}
+
+.tutorial-node.user {
+  margin-left: 20px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.tutorial-node.assistant {
+  margin-right: 18px;
+}
+
+.tutorial-node.branch {
+  margin-left: 36px;
+  border-color: rgba(44, 179, 140, 0.18);
+  box-shadow: inset 0 0 0 1px rgba(44, 179, 140, 0.08);
+}
+
+.tutorial-node-label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--quiet);
+  font-size: 11px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.tutorial-node-copy {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text);
+}
+
+.tutorial-code-card {
+  padding: 14px;
+  background: #0d1210;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tutorial-code-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.tutorial-code-pill {
+  min-height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.tutorial-code-line {
+  height: 10px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.tutorial-code-line.w-92 {
+  width: 92%;
+}
+
+.tutorial-code-line.w-80 {
+  width: 80%;
+}
+
+.tutorial-code-line.w-66 {
+  width: 66%;
+}
+
+.tutorial-code-line.w-48 {
+  width: 48%;
+}
+
+.tutorial-dots {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.tutorial-dialog-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.tutorial-secondary-btn:disabled {
+  opacity: 0.42;
+  cursor: default;
+}
+
+.tutorial-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.tutorial-dot.is-active {
+  width: 26px;
+  background: var(--accent);
+}
+
+.tutorial-primary-btn {
+  background: linear-gradient(180deg, rgba(58, 193, 154, 0.98), rgba(35, 151, 117, 0.98));
+  color: #f7fffc;
+  border-color: rgba(44, 179, 140, 0.34);
+  box-shadow: 0 14px 28px rgba(7, 52, 40, 0.24);
+}
+
 .sidebar-newchat:hover,
 .newchat-btn:hover,
 .settings-btn:hover,
 .export-btn:hover,
 .logout-btn:hover,
+.help-btn:hover,
+.tutorial-close:hover,
+.tutorial-secondary-btn:hover,
+.tutorial-primary-btn:hover,
+.code-copy-btn:hover,
 .branch-btn:hover,
 .toggle-btn:hover,
 .edit-btn:hover {
@@ -1082,6 +1473,26 @@ button:focus-visible,
     justify-content: flex-start;
   }
 
+  .tutorial-modal {
+    top: auto;
+    right: 12px;
+    left: 12px;
+    bottom: 84px;
+    width: auto;
+  }
+
+  .tutorial-dialog-footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .tutorial-dialog-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    width: 100%;
+  }
+
   .user-pill {
     max-width: 100%;
   }
@@ -1106,6 +1517,11 @@ button:focus-visible,
 
   #chatForm {
     align-items: stretch;
+    flex-direction: column;
+  }
+
+  .btn {
+    width: 100%;
   }
 }
 
@@ -1133,7 +1549,12 @@ button:focus-visible,
   .branch-input,
   .btn,
   .input,
-  .message-actions {
+  .message-actions,
+  .help-btn,
+  .tutorial-close,
+  .tutorial-secondary-btn,
+  .tutorial-primary-btn,
+  .code-copy-btn {
     transition: none;
   }
 }
