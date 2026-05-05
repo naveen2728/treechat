@@ -1,0 +1,27 @@
+<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="128" height="128" rx="32" fill="url(#bg)" />
+  <rect x="10" y="10" width="108" height="108" rx="24" stroke="rgba(255,255,255,0.08)" />
+  <path
+    d="M39 36V91"
+    stroke="#DDFCF1"
+    stroke-width="8"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <path
+    d="M39 50H72C80.837 50 88 57.163 88 66C88 74.837 80.837 82 72 82H56"
+    stroke="#DDFCF1"
+    stroke-width="8"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <circle cx="39" cy="36" r="11" fill="#F6FFFB" />
+  <circle cx="39" cy="91" r="11" fill="#9BF0CB" />
+  <circle cx="88" cy="66" r="11" fill="#69DCAF" />
+  <defs>
+    <linearGradient id="bg" x1="18" y1="14" x2="104" y2="118" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#5ED4AC" />
+      <stop offset="1" stop-color="#1A8E6B" />
+    </linearGradient>
+  </defs>
+</svg>

@@ -8,6 +8,9 @@ const sidebarSearchEl = document.getElementById("sidebarSearch");
 const conversationListEl = document.getElementById("conversationList");
 const exportBtn = document.getElementById("exportBtn");
 const settingsBtn = document.getElementById("settingsBtn");
+const historyBtn = document.getElementById("historyBtn");
+const sidebarEl = document.querySelector(".sidebar");
+const sidebarBackdropEl = document.getElementById("sidebarBackdrop");
 const toastLayerEl = document.getElementById("toastLayer");
 const tutorialBtn = document.getElementById("tutorialBtn");
 const tutorialModalEl = document.getElementById("tutorialModal");
@@ -32,6 +35,7 @@ let databaseStatus = "syncing";
 let conversationSearchTerm = "";
 let pendingDeleteToast = null;
 let tutorialIndex = 0;
+let isSidebarOpen = false;
 
 const tutorialSlides = [
   {
@@ -243,7 +247,27 @@ function scrollToBottom() {
 function renderApp(animatedNodeId = null) {
   renderSidebar();
   renderTree(animatedNodeId);
+  syncMobileSidebar();
   updateInputState();
+}
+
+function syncMobileSidebar() {
+  if (!sidebarEl || !sidebarBackdropEl || !historyBtn) return;
+
+  const isMobile = window.innerWidth <= 760;
+  sidebarEl.classList.toggle("is-open", isMobile && isSidebarOpen);
+  sidebarBackdropEl.classList.toggle("is-hidden", !(isMobile && isSidebarOpen));
+  historyBtn.setAttribute("aria-expanded", String(isMobile && isSidebarOpen));
+}
+
+function closeMobileSidebar() {
+  isSidebarOpen = false;
+  syncMobileSidebar();
+}
+
+function openMobileSidebar() {
+  isSidebarOpen = true;
+  syncMobileSidebar();
 }
 
 function renderSidebar() {
@@ -285,6 +309,7 @@ function renderSidebar() {
       latestAiWarning = "";
       saveConversations();
       renderApp();
+      closeMobileSidebar();
       inputEl.focus();
     });
 
@@ -1236,8 +1261,14 @@ settingsBtn.addEventListener("click", () => {
     databaseStatus === "ready"
       ? "Database sync is active."
       : "Database sync is offline, so this browser is using local storage right now.";
-  window.alert(`${details}\n\nSettings panel coming soon!`);
+  window.alert(`${details}\n\nGuide and mobile history polish are active now.`);
 });
+historyBtn?.addEventListener("click", () => {
+  if (window.innerWidth > 760) return;
+  isSidebarOpen = !isSidebarOpen;
+  syncMobileSidebar();
+});
+sidebarBackdropEl?.addEventListener("click", closeMobileSidebar);
 
 tutorialCloseBtn?.addEventListener("click", closeTutorial);
 tutorialPrevBtn?.addEventListener("click", () => {
@@ -1276,7 +1307,11 @@ window.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && tutorialModalEl && !tutorialModalEl.classList.contains("is-hidden")) {
     closeTutorial();
   }
+  if (event.key === "Escape" && isSidebarOpen) {
+    closeMobileSidebar();
+  }
 });
+window.addEventListener("resize", syncMobileSidebar);
 
 autoResizeTextarea(inputEl);
 renderApp();

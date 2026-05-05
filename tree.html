@@ -3,14 +3,20 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TreeChat</title>
+    <link rel="icon" type="image/svg+xml" href="logo.svg" />
+    <link rel="apple-touch-icon" href="logo.svg" />
     <link rel="stylesheet" href="tree.css" />
   </head>
   <body>
     <div class="app-shell">
       <aside class="sidebar" aria-label="Conversation sidebar">
         <div class="brand">
-          <span class="brand-mark">B</span>
-          <span>Branch Chat</span>
+          <img class="brand-logo" src="logo.svg" alt="TreeChat logo" />
+          <div class="brand-copy">
+            <span class="brand-name">TreeChat</span>
+            <span class="brand-tag">Branch ideas without losing the thread</span>
+          </div>
         </div>
         <button class="sidebar-newchat" id="sidebarNewChatBtn" type="button">New chat</button>
         <div class="sidebar-search-wrap">
@@ -27,9 +33,10 @@
           <div class="conversation-list" id="conversationList"></div>
         </div>
       </aside>
+      <button class="sidebar-backdrop is-hidden" id="sidebarBackdrop" type="button" aria-label="Close history"></button>
 
       <main class="main-stage">
-        <div class="page-title">Branch Chat &#127795;</div>
+        <div class="page-title">TreeChat &#127795;</div>
 
         <div class="chat-shell" role="application" aria-label="Chat interface">
           <div class="chat-header">
@@ -38,6 +45,9 @@
               <span>Send normally. Use Branch only when you want a side path.</span>
             </div>
             <div class="chat-actions">
+              <button class="history-btn" id="historyBtn" type="button" aria-label="Open chat history">
+                History
+              </button>
               <button class="help-btn" id="tutorialBtn" type="button" aria-label="How TreeChat works">
                 <span class="help-btn-icon">?</span>
                 <span class="help-btn-label">Guide</span>

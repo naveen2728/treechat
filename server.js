@@ -22,11 +22,13 @@ const DEFAULT_USER_ID = "guest";
 let HTML_CONTENT = "";
 let CSS_CONTENT = "";
 let JS_CONTENT = "";
+let LOGO_CONTENT = "";
 
 try {
   const htmlPath = path.join(__dirname, "tree.html");
   const cssPath = path.join(__dirname, "tree.css");
   const jsPath = path.join(__dirname, "tree.js");
+  const logoPath = path.join(__dirname, "logo.svg");
 
   if (fs.existsSync(htmlPath)) {
     HTML_CONTENT = fs.readFileSync(htmlPath, "utf-8");
@@ -36,6 +38,9 @@ try {
   }
   if (fs.existsSync(jsPath)) {
     JS_CONTENT = fs.readFileSync(jsPath, "utf-8");
+  }
+  if (fs.existsSync(logoPath)) {
+    LOGO_CONTENT = fs.readFileSync(logoPath, "utf-8");
   }
 } catch (err) {
   console.error("Error reading static files:", err.message);
@@ -68,6 +73,15 @@ app.get("/tree.js", (req, res) => {
     res.send(JS_CONTENT);
   } else {
     res.status(500).send("JS file not available");
+  }
+});
+
+app.get("/logo.svg", (req, res) => {
+  if (LOGO_CONTENT) {
+    res.setHeader("Content-Type", "image/svg+xml; charset=utf-8");
+    res.send(LOGO_CONTENT);
+  } else {
+    res.status(500).send("Logo file not available");
   }
 });
 
