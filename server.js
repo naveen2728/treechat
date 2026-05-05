@@ -74,11 +74,12 @@ app.get("/tree.js", (req, res) => {
 app.get("/api/health", (req, res) => {
   const hasGeminiKey = Boolean(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY);
   const hasHuggingFaceKey = Boolean(process.env.HF_TOKEN);
+  const primaryProvider = hasHuggingFaceKey ? "huggingface" : hasGeminiKey ? "gemini" : "mock";
 
   res.json({
     ok: true,
     aiConfigured: hasGeminiKey || hasHuggingFaceKey,
-    provider: hasGeminiKey ? "gemini" : hasHuggingFaceKey ? "huggingface" : "mock",
+    provider: primaryProvider,
     database: {
       provider: databaseProvider,
       configured: true,
@@ -167,7 +168,31 @@ app.post("/api/ai", async (req, res) => {
     }
 
     const conversation = buildConversation(message, history);
+    const huggingFaceToken = process.env.HF_TOKEN;
     const geminiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+
+    if (huggingFaceToken) {
+      try {
+        const generatedText = await callHuggingFace(conversation, huggingFaceToken);
+        return res.json({
+          generated_text: generatedText || getMockResponse(),
+          source: generatedText ? "huggingface" : "mock",
+        });
+      } catch (error) {
+        console.error("Hugging Face API Error:", error);
+
+        if (geminiKey) {
+          const generatedText = await callGemini(conversation, geminiKey);
+          return res.json({
+            generated_text: generatedText || getMockResponse(),
+            source: generatedText ? "gemini" : "mock",
+            warning: "Hugging Face was unavailable, so Gemini handled this reply.",
+          });
+        }
+
+        throw error;
+      }
+    }
 
     if (geminiKey) {
       const generatedText = await callGemini(conversation, geminiKey);
@@ -177,21 +202,11 @@ app.post("/api/ai", async (req, res) => {
       });
     }
 
-    const huggingFaceToken = process.env.HF_TOKEN;
-
-    if (huggingFaceToken) {
-      const generatedText = await callHuggingFace(conversation, huggingFaceToken);
-      return res.json({
-        generated_text: generatedText || getMockResponse(),
-        source: generatedText ? "huggingface" : "mock",
-      });
-    }
-
     return res.json({
       generated_text: getMockResponse(),
       source: "mock",
       warning:
-        "No AI key is configured. Add GEMINI_API_KEY in Vercel environment variables to enable AI.",
+        "No AI key is configured. Add HF_TOKEN in Vercel environment variables to enable AI.",
     });
   } catch (error) {
     console.error("AI API Error:", error);
